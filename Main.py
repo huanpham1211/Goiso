@@ -227,7 +227,7 @@ def display_reception_tab():
     else:
         st.write("No patients pending or assigned to you.")
 
-    # Optionally, implement a Mark as Received button
+    # Mark as Received functionality
     if not filtered_df.empty:
         selected_pid = st.selectbox("Select a PID to mark as received:", filtered_df["PID"].tolist())
         if st.button("Mark as Received"):
@@ -247,7 +247,33 @@ def display_reception_tab():
             ).execute()
 
             st.success(f"PID {selected_pid} marked as received.")
-            st.experimental_rerun()  # Refresh the tab
+
+            # Reload the filtered data dynamically
+            # Refetch updated data
+            refreshed_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+            refreshed_df = refreshed_df[
+                refreshed_df["thoiGianLayMau"].isna() | (refreshed_df["nguoiLayMau"] == user_name)
+            ]
+            refreshed_df["thoiGianNhanMau"] = pd.to_datetime(refreshed_df["thoiGianNhanMau"], errors="coerce")
+            refreshed_df = refreshed_df.sort_values(by="thoiGianNhanMau")
+
+            # Update the displayed table
+            refreshed_df = refreshed_df.rename(columns={
+                "PID": "PID",
+                "tenBenhNhan": "Họ tên",
+                "thoiGianNhanMau": "Thời gian nhận mẫu",
+                "thoiGianLayMau": "Thời gian lấy máu",
+                "nguoiLayMau": "Người lấy máu",
+            })
+            refreshed_df = refreshed_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu"]]
+
+            # Display refreshed data
+            if not refreshed_df.empty:
+                st.write("### Updated Patients for Current Receptionist")
+                st.dataframe(refreshed_df, use_container_width=True)
+            else:
+                st.write("No patients pending or assigned to you.")
+
 
 
 # Main App Logic
