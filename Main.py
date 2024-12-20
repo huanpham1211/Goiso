@@ -26,17 +26,30 @@ credentials = service_account.Credentials.from_service_account_info(
 # Initialize the Google Sheets API client
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
-# Function to fetch data from a Google Sheet
 def fetch_sheet_data(sheet_id, range_name):
+    """Fetches data from Google Sheets and returns it as a DataFrame."""
     result = sheets_service.spreadsheets().values().get(
         spreadsheetId=sheet_id,
         range=range_name
     ).execute()
     values = result.get('values', [])
-    return pd.DataFrame(values[1:], columns=values[0]) if values else pd.DataFrame()
+    
+    if not values:
+        st.warning(f"No data found in range: {range_name}")
+        return pd.DataFrame()  # Return an empty DataFrame if no data is found
+    
+    # Check if the first row (headers) exists and the subsequent rows (data) exist
+    headers = values[0] if len(values) > 0 else []
+    rows = values[1:] if len(values) > 1 else []
+    
+    if not rows:
+        st.warning("No data rows found in the sheet.")
+        return pd.DataFrame(columns=headers)  # Return DataFrame with just headers
+    
+    return pd.DataFrame(rows, columns=headers)
 
-# Function to append data to a Google Sheet
 def append_to_sheet(sheet_id, range_name, values):
+    """Appends data to a Google Sheet."""
     body = {'values': values}
     sheets_service.spreadsheets().values().append(
         spreadsheetId=sheet_id,
@@ -46,22 +59,61 @@ def append_to_sheet(sheet_id, range_name, values):
         body=body
     ).execute()
 
-# Helper function to append new registration data
 def register_pid(pid, ten_nhan_vien):
+    """Registers a new PID."""
     vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
     timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-    data = [[pid, timestamp, ten_nhan_vien]]
+    data = [[pid, timestamp, ten_nhan_vien, "", ""]]  # Empty values for 'thoiGianLayMau' and 'nguoiLayMau'
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
 
-# Function to display Reception tab
-def display_reception_tab():
+def mark_pid_as_received(pid, ten_lay_mau):
+    """Marks a PID as received with sample collection details."""
     reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    
     if reception_df.empty:
-        st.write("No PIDs registered.")
+        st.error("No data available to update.")
         return
+    
+    # Find the index of the row with the specified PID
+    row_index = reception_df.index[reception_df["PID"] == pid].tolist()
+    if not row_index:
+        st.error(f"PID {pid} not found.")
+        return
+    
+    row_index = row_index[0]  # Get the first matching row
+    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+    timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Update the row with the collection details
+    reception_df.loc[row_index, "thoiGianLayMau"] = timestamp
+    reception_df.loc[row_index, "nguoiLayMau"] = ten_lay_mau
+    
+    # Push the updated data back to Google Sheets
+    updated_values = [reception_df.columns.tolist()] + reception_df.values.tolist()
+    body = {'values': updated_values}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=RECEPTION_SHEET_ID,
+        range=RECEPTION_SHEET_RANGE,
+        valueInputOption="USER_ENTERED",
+        body=body
+    ).execute()
 
-    reception_df.columns = ["PID", "thoiGianNhanMau", "nguoiNhan"]
-    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"])
+def display_reception_tab():
+    """Displays the Reception tab for managing PIDs."""
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    
+    if reception_df.empty:
+        st.write("No PIDs registered yet.")
+        return
+    
+    # Ensure DataFrame has expected columns
+    required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
+    if not required_columns.issubset(reception_df.columns):
+        st.error(f"The sheet must contain these columns: {required_columns}")
+        return
+    
+    # Convert and sort timestamps
+    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
     reception_df = reception_df.sort_values(by="thoiGianNhanMau")
 
     st.write("### Registered PIDs")
@@ -70,17 +122,11 @@ def display_reception_tab():
     # Mark PID as received
     selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
     if st.button("Mark as Received"):
-        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-        user = st.session_state["user_info"]
-        received_data = [[selected_pid, timestamp, user["tenNhanVien"]]]
-        try:
-            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, received_data)
-            st.success(f"PID {selected_pid} marked as received.")
-        except Exception as e:
-            st.error(f"Error marking PID as received: {e}")
+        user_info = st.session_state["user_info"]
+        mark_pid_as_received(selected_pid, user_info["tenNhanVien"])
+        st.success(f"PID {selected_pid} marked as received.")
 
-# Login Page
+# Main App Logic
 if not st.session_state.get('is_logged_in', False):
     st.title("Login")
     username = st.text_input("Username")
@@ -129,3 +175,4 @@ else:
         st.session_state['is_logged_in'] = False
         st.session_state['user_info'] = None
         st.experimental_rerun()
+
