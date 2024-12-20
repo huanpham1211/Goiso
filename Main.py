@@ -35,11 +35,10 @@ def fetch_sheet_data(sheet_id, range_name):
     values = result.get('values', [])
     
     if not values:
-        st.warning(f"No data found in range: {range_name}")
         return pd.DataFrame()  # Return an empty DataFrame if no data is found
     
-    headers = values[0] if len(values) > 0 else []
-    rows = values[1:] if len(values) > 1 else []
+    headers = values[0]
+    rows = values[1:]
     
     # Ensure all rows match the number of headers
     normalized_rows = [row + [''] * (len(headers) - len(row)) for row in rows]
@@ -62,46 +61,47 @@ def register_pid(pid, ten_nhan_vien):
     timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
     data = [[pid, timestamp, ten_nhan_vien, "", ""]]  # Empty values for 'thoiGianLayMau' and 'nguoiLayMau'
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
+    st.session_state['last_registered_pid'] = pid  # Store the last registered PID for updates
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
-    st.button("Refresh", on_click=lambda: st.experimental_rerun())  # Refresh button for live updates
+    refresh = st.button("Refresh")  # Refresh button
 
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if reception_df.empty:
-        st.write("No PIDs registered yet.")
-        return
+    if refresh or 'last_registered_pid' in st.session_state:
+        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+        if reception_df.empty:
+            st.write("No PIDs registered yet.")
+            return
 
-    required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
+        required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
+        if not required_columns.issubset(reception_df.columns):
+            st.error(f"The sheet must contain these columns: {required_columns}")
+            return
 
-    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-    reception_df = reception_df.sort_values(by="thoiGianNhanMau")
+        reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
+        reception_df = reception_df.sort_values(by="thoiGianNhanMau")
 
-    st.dataframe(reception_df, use_container_width=True)
+        st.dataframe(reception_df, use_container_width=True)
 
-    selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
-    if st.button("Mark as Received"):
-        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-        user_info = st.session_state["user_info"]
-        append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
-        st.success(f"PID {selected_pid} marked as received.")
-        st.experimental_rerun()
+        selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
+        if st.button("Mark as Received"):
+            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+            timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+            user_info = st.session_state["user_info"]
+            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
+            st.success(f"PID {selected_pid} marked as received.")
 
 def display_registration_tab():
     """Displays the New Registration tab."""
     st.title("Register New PID")
     pid = st.text_input("Enter PID:")
+
     if st.button("Register PID"):
         user_info = st.session_state.get("user_info", {})
         if pid:
             register_pid(pid, user_info.get("tenNhanVien", "Unknown"))
             st.success(f"PID {pid} registered successfully.")
-            st.experimental_rerun()
         else:
             st.error("Please enter a PID.")
 
@@ -135,4 +135,3 @@ else:
     # Logout Button
     if st.sidebar.button("Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
