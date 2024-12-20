@@ -199,7 +199,7 @@ def display_reception_tab():
     # Current logged-in user's name
     user_name = st.session_state["user_info"]["tenNhanVien"]
 
-    # Filter rows where 'thoiGianLayMau' or 'nguoiLayMau' is empty, or 'nguoiLayMau' matches the logged-in user
+    # Filter rows where 'thoiGianLayMau' is empty or 'nguoiLayMau' matches the logged-in user
     filtered_df = reception_df[
         reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == user_name)
     ]
@@ -218,18 +218,21 @@ def display_reception_tab():
     })
 
     # Select only relevant columns for display
-    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu"]]
+    display_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu"]]
 
     # Display the table
-    if not filtered_df.empty:
+    if not display_df.empty:
         st.write("### Patients for Current Receptionist")
-        st.dataframe(filtered_df, use_container_width=True)
+        st.dataframe(display_df, use_container_width=True)
     else:
         st.write("No patients pending or assigned to you.")
 
+    # Filter for PID selection (only show rows with empty 'Thời gian lấy máu')
+    selectable_pids = filtered_df[filtered_df["Thời gian lấy máu"].isna()]["PID"].tolist()
+
     # Mark as Received functionality
-    if not filtered_df.empty:
-        selected_pid = st.selectbox("Select a PID to mark as received:", filtered_df["PID"].tolist())
+    if selectable_pids:
+        selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
         if st.button("Mark as Received"):
             # Update thoiGianLayMau and nguoiLayMau for the selected PID
             now = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
@@ -273,6 +276,9 @@ def display_reception_tab():
                 st.dataframe(refreshed_df, use_container_width=True)
             else:
                 st.write("No patients pending or assigned to you.")
+    else:
+        st.write("No selectable PIDs available for marking as received.")
+
 
 
 
