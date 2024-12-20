@@ -38,15 +38,18 @@ def fetch_sheet_data(sheet_id, range_name):
         st.warning(f"No data found in range: {range_name}")
         return pd.DataFrame()  # Return an empty DataFrame if no data is found
     
-    # Check if the first row (headers) exists and the subsequent rows (data) exist
     headers = values[0] if len(values) > 0 else []
     rows = values[1:] if len(values) > 1 else []
+    
+    # Ensure all rows match the number of headers
+    normalized_rows = [row + [''] * (len(headers) - len(row)) for row in rows]
     
     if not rows:
         st.warning("No data rows found in the sheet.")
         return pd.DataFrame(columns=headers)  # Return DataFrame with just headers
     
-    return pd.DataFrame(rows, columns=headers)
+    return pd.DataFrame(normalized_rows, columns=headers)
+
 
 def append_to_sheet(sheet_id, range_name, values):
     """Appends data to a Google Sheet."""
