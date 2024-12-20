@@ -1,10 +1,11 @@
 import streamlit as st
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 import pandas as pd
 from datetime import datetime
-import pytz
 import json
+import pytz
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+import time
 
 # Constants
 NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
@@ -12,16 +13,19 @@ NHANVIEN_SHEET_RANGE = 'Sheet1'
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
 RECEPTION_SHEET_RANGE = 'Sheet1'
 
-# Parse the Google credentials from Streamlit secrets
-GOOGLE_CREDENTIALS = st.secrets["GOOGLE_CREDENTIALS"]
-credentials_info = json.loads(GOOGLE_CREDENTIALS)
+# Load Google credentials from Streamlit Secrets
+google_credentials = st.secrets["GOOGLE_CREDENTIALS"]
+credentials_info = json.loads(google_credentials)
 
 # Authenticate using the service account credentials
 credentials = service_account.Credentials.from_service_account_info(
     credentials_info,
     scopes=["https://www.googleapis.com/auth/spreadsheets"]
 )
-service = build('sheets', 'v4', credentials=credentials)
+
+# Initialize the Google Sheets API client
+sheets_service = build('sheets', 'v4', credentials=credentials)
+
 
 # Helper functions
 def read_google_sheet(sheet_id, sheet_range):
