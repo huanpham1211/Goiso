@@ -46,25 +46,39 @@ def append_to_sheet(sheet_id, range_name, values):
         body=body
     ).execute()
 
-# Load Google Sheets data into Streamlit session state
-if 'nhanvien_df' not in st.session_state:
-    st.session_state['nhanvien_df'] = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
-
-# Helper function to check login
-def check_login(username, password):
-    nhanvien_df = st.session_state['nhanvien_df']
-    user = nhanvien_df[
-        (nhanvien_df['taiKhoan'].astype(str) == str(username)) &
-        (nhanvien_df['matKhau'].astype(str) == str(password))
-    ]
-    return user.iloc[0].to_dict() if not user.empty else None
-
 # Helper function to append new registration data
 def register_pid(pid, ten_nhan_vien):
     vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
     timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
     data = [[pid, timestamp, ten_nhan_vien]]
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
+
+# Function to display Reception tab
+def display_reception_tab():
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    if reception_df.empty:
+        st.write("No PIDs registered.")
+        return
+
+    reception_df.columns = ["PID", "thoiGianNhanMau", "nguoiNhan"]
+    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"])
+    reception_df = reception_df.sort_values(by="thoiGianNhanMau")
+
+    st.write("### Registered PIDs")
+    st.dataframe(reception_df, use_container_width=True)
+
+    # Mark PID as received
+    selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
+    if st.button("Mark as Received"):
+        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+        user = st.session_state["user_info"]
+        received_data = [[selected_pid, timestamp, user["tenNhanVien"]]]
+        try:
+            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, received_data)
+            st.success(f"PID {selected_pid} marked as received.")
+        except Exception as e:
+            st.error(f"Error marking PID as received: {e}")
 
 # Login Page
 if not st.session_state.get('is_logged_in', False):
@@ -73,30 +87,42 @@ if not st.session_state.get('is_logged_in', False):
     password = st.text_input("Password", type="password")
     
     if st.button("Login"):
-        user = check_login(username, password)
-        if user:
+        nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
+        user = nhanvien_df[
+            (nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)
+        ]
+        if not user.empty:
+            user_info = user.iloc[0].to_dict()
             st.session_state['is_logged_in'] = True
-            st.session_state['user_info'] = user
-            st.success(f"Welcome, {user['tenNhanVien']}!")
+            st.session_state['user_info'] = user_info
+            st.success(f"Welcome, {user_info['tenNhanVien']}!")
         else:
             st.error("Invalid username or password.")
 else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']}")
 
-    # PID Registration Page
-    st.title("Register New PID")
-    pid = st.text_input("Enter PID:")
+    # Tabs
+    tab1, tab2 = st.tabs(["Register New PID", "Reception"])
     
-    if st.button("Register PID"):
-        if pid:
-            try:
-                register_pid(pid, user_info['tenNhanVien'])
-                st.success(f"PID {pid} registered successfully.")
-            except Exception as e:
-                st.error(f"Error registering PID: {e}")
-        else:
-            st.error("Please enter a PID.")
+    # Register New PID Tab
+    with tab1:
+        st.title("Register New PID")
+        pid = st.text_input("Enter PID:")
+        
+        if st.button("Register PID"):
+            if pid:
+                try:
+                    register_pid(pid, user_info['tenNhanVien'])
+                    st.success(f"PID {pid} registered successfully.")
+                except Exception as e:
+                    st.error(f"Error registering PID: {e}")
+            else:
+                st.error("Please enter a PID.")
+
+    # Reception Tab
+    with tab2:
+        display_reception_tab()
 
     # Logout Button
     if st.sidebar.button("Logout"):
