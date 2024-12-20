@@ -5,6 +5,8 @@ import json
 import pytz
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+import requests
+import xml.etree.ElementTree as ET
 
 # Google Sheets document IDs and ranges
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
@@ -55,13 +57,82 @@ def append_to_sheet(sheet_id, range_name, values):
         body=body
     ).execute()
 
+def fetch_patient_name(pid):
+    """Fetches the patient name from the API."""
+    url = f"https://api.bvhungvuong.vn/api/dangkykham/?ip=&idbv=&id=&mabn={pid}&ngay="
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        # Parse the XML response
+        root = ET.fromstring(response.content)
+        hoten = root.find(".//hoten")
+        if hoten is not None:
+            return hoten.text.strip()
+        else:
+            st.error("Unable to fetch the patient's name.")
+            return None
+    else:
+        st.error(f"Failed to fetch patient data. HTTP Status: {response.status_code}")
+        return None
+
+def register_pid_with_name(pid, ten_nhan_vien):
+    """Registers a new PID and fetches the patient name."""
+    # Fetch the patient's name
+    patient_name = fetch_patient_name(pid)
+    if not patient_name:
+        return False  # Abort if name couldn't be fetched
+
+    # Get the current timestamp
+    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+    timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Data to append to the Google Sheet
+    data = [[pid, timestamp, ten_nhan_vien, "", "", patient_name]]  # New column for `tenBenhNhan`
+    append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
+
+    return True
+
 def register_pid(pid, ten_nhan_vien):
-    """Registers a new PID."""
+    """Registers a new PID and displays a table of pending PIDs."""
     vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
     timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
     data = [[pid, timestamp, ten_nhan_vien, "", ""]]  # Empty values for 'thoiGianLayMau' and 'nguoiLayMau'
+    
+    # Append data to the Google Sheet
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
     st.session_state['last_registered_pid'] = pid  # Store the last registered PID for updates
+
+    # Fetch updated data from the sheet
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+
+    if reception_df.empty:
+        st.write("No PIDs registered yet.")
+        return
+
+    # Ensure required columns exist
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau"}
+    if not required_columns.issubset(reception_df.columns):
+        st.error(f"The sheet must contain these columns: {required_columns}")
+        return
+
+    # Filter rows where 'thoiGianLayMau' is empty
+    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
+    filtered_df = reception_df[reception_df["thoiGianLayMau"].isna()]
+
+    # Rename columns for display
+    filtered_df = filtered_df.rename(columns={
+        "PID": "PID",
+        "tenBenhNhan": "Họ tên",
+        "thoiGianNhanMau": "Thời gian nhận",
+    })
+
+    # Select only relevant columns for display
+    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận"]]
+
+    # Display the table
+    st.write("### Pending Patients")
+    st.dataframe(filtered_df, use_container_width=True)
+
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
