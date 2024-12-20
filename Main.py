@@ -43,13 +43,7 @@ def fetch_sheet_data(sheet_id, range_name):
     
     # Ensure all rows match the number of headers
     normalized_rows = [row + [''] * (len(headers) - len(row)) for row in rows]
-    
-    if not rows:
-        st.warning("No data rows found in the sheet.")
-        return pd.DataFrame(columns=headers)  # Return DataFrame with just headers
-    
     return pd.DataFrame(normalized_rows, columns=headers)
-
 
 def append_to_sheet(sheet_id, range_name, values):
     """Appends data to a Google Sheet."""
@@ -69,77 +63,56 @@ def register_pid(pid, ten_nhan_vien):
     data = [[pid, timestamp, ten_nhan_vien, "", ""]]  # Empty values for 'thoiGianLayMau' and 'nguoiLayMau'
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
 
-def mark_pid_as_received(pid, ten_lay_mau):
-    """Marks a PID as received with sample collection details."""
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    
-    if reception_df.empty:
-        st.error("No data available to update.")
-        return
-    
-    # Find the index of the row with the specified PID
-    row_index = reception_df.index[reception_df["PID"] == pid].tolist()
-    if not row_index:
-        st.error(f"PID {pid} not found.")
-        return
-    
-    row_index = row_index[0]  # Get the first matching row
-    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-    timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Update the row with the collection details
-    reception_df.loc[row_index, "thoiGianLayMau"] = timestamp
-    reception_df.loc[row_index, "nguoiLayMau"] = ten_lay_mau
-    
-    # Push the updated data back to Google Sheets
-    updated_values = [reception_df.columns.tolist()] + reception_df.values.tolist()
-    body = {'values': updated_values}
-    sheets_service.spreadsheets().values().update(
-        spreadsheetId=RECEPTION_SHEET_ID,
-        range=RECEPTION_SHEET_RANGE,
-        valueInputOption="USER_ENTERED",
-        body=body
-    ).execute()
-
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
+    st.write("### Reception Management")
+    st.button("Refresh", on_click=lambda: st.experimental_rerun())  # Refresh button for live updates
+
     reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    
     if reception_df.empty:
         st.write("No PIDs registered yet.")
         return
-    
-    # Ensure DataFrame has expected columns
+
     required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
-    
-    # Convert and sort timestamps
+
     reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
     reception_df = reception_df.sort_values(by="thoiGianNhanMau")
 
-    st.write("### Registered PIDs")
     st.dataframe(reception_df, use_container_width=True)
 
-    # Mark PID as received
     selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
     if st.button("Mark as Received"):
+        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
         user_info = st.session_state["user_info"]
-        mark_pid_as_received(selected_pid, user_info["tenNhanVien"])
+        append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
         st.success(f"PID {selected_pid} marked as received.")
+        st.experimental_rerun()
+
+def display_registration_tab():
+    """Displays the New Registration tab."""
+    st.title("Register New PID")
+    pid = st.text_input("Enter PID:")
+    if st.button("Register PID"):
+        user_info = st.session_state.get("user_info", {})
+        if pid:
+            register_pid(pid, user_info.get("tenNhanVien", "Unknown"))
+            st.success(f"PID {pid} registered successfully.")
+            st.experimental_rerun()
+        else:
+            st.error("Please enter a PID.")
 
 # Main App Logic
 if not st.session_state.get('is_logged_in', False):
     st.title("Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-    
     if st.button("Login"):
         nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
-        user = nhanvien_df[
-            (nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)
-        ]
+        user = nhanvien_df[(nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)]
         if not user.empty:
             user_info = user.iloc[0].to_dict()
             st.session_state['is_logged_in'] = True
@@ -151,31 +124,15 @@ else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']}")
 
-    # Tabs
-    tab1, tab2 = st.tabs(["Register New PID", "Reception"])
-    
-    # Register New PID Tab
-    with tab1:
-        st.title("Register New PID")
-        pid = st.text_input("Enter PID:")
-        
-        if st.button("Register PID"):
-            if pid:
-                try:
-                    register_pid(pid, user_info['tenNhanVien'])
-                    st.success(f"PID {pid} registered successfully.")
-                except Exception as e:
-                    st.error(f"Error registering PID: {e}")
-            else:
-                st.error("Please enter a PID.")
+    # Sidebar Navigation
+    selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception"])
 
-    # Reception Tab
-    with tab2:
+    if selected_tab == "Register New PID":
+        display_registration_tab()
+    elif selected_tab == "Reception":
         display_reception_tab()
 
     # Logout Button
     if st.sidebar.button("Logout"):
-        st.session_state['is_logged_in'] = False
-        st.session_state['user_info'] = None
+        st.session_state.clear()
         st.experimental_rerun()
-
