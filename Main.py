@@ -80,6 +80,7 @@ def register_pid_with_name(pid, ten_nhan_vien):
     # Fetch the patient's name
     patient_name = fetch_patient_name(pid)
     if not patient_name:
+        st.error("Failed to fetch patient name. Registration aborted.")
         return False  # Abort if name couldn't be fetched
 
     # Get the current timestamp
@@ -87,52 +88,30 @@ def register_pid_with_name(pid, ten_nhan_vien):
     timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
 
     # Data to append to the Google Sheet
-    data = [[pid, timestamp, ten_nhan_vien, "", "", patient_name]]  # New column for `tenBenhNhan`
+    data = [[pid, patient_name, timestamp, ten_nhan_vien, "", ""]]  # Include patient_name in tenBenhNhan
     append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
 
+    st.session_state['last_registered_pid'] = pid  # Store the last registered PID for updates
     return True
 
-def register_pid(pid, ten_nhan_vien):
-    """Registers a new PID and displays a table of pending PIDs."""
-    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-    timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-    data = [[pid, timestamp, ten_nhan_vien, "", ""]]  # Empty values for 'thoiGianLayMau' and 'nguoiLayMau'
-    
-    # Append data to the Google Sheet
-    append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
-    st.session_state['last_registered_pid'] = pid  # Store the last registered PID for updates
+def display_registration_tab():
+    """Displays the New Registration tab."""
+    st.title("Register New PID")
+    pid = st.text_input("Enter PID:")
 
-    # Fetch updated data from the sheet
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-
-    if reception_df.empty:
-        st.write("No PIDs registered yet.")
-        return
-
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
-
-    # Filter rows where 'thoiGianLayMau' is empty
-    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-    filtered_df = reception_df[reception_df["thoiGianLayMau"].isna()]
-
-    # Rename columns for display
-    filtered_df = filtered_df.rename(columns={
-        "PID": "PID",
-        "tenBenhNhan": "Họ tên",
-        "thoiGianNhanMau": "Thời gian nhận",
-    })
-
-    # Select only relevant columns for display
-    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận"]]
-
-    # Display the table
-    st.write("### Pending Patients")
-    st.dataframe(filtered_df, use_container_width=True)
-
+    if st.button("Register PID"):
+        user_info = st.session_state.get("user_info", {})
+        if pid:
+            try:
+                success = register_pid_with_name(pid, user_info.get("tenNhanVien", "Unknown"))
+                if success:
+                    st.success(f"PID {pid} registered successfully.")
+                else:
+                    st.error("Failed to register the PID.")
+            except Exception as e:
+                st.error(f"Error registering PID: {e}")
+        else:
+            st.error("Please enter a PID.")
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
@@ -145,89 +124,31 @@ def display_reception_tab():
         return
 
     # Ensure required columns exist
-    required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
-    # Filter data to only show entries from the current day
-    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-    today_date = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
+    # Filter rows where 'thoiGianLayMau' is empty
     reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-    reception_df["thoiGianLayMau"] = pd.to_datetime(reception_df["thoiGianLayMau"], errors="coerce")
-
-    reception_df = reception_df[reception_df["thoiGianNhanMau"].dt.strftime("%Y-%m-%d") == today_date]
-
-    # Filter out rows where 'thoiGianLayMau' is not empty
-    reception_df = reception_df[
-        reception_df["thoiGianLayMau"].isna() | 
-        (reception_df["nguoiLayMau"] == st.session_state["user_info"]["tenNhanVien"])
-    ]
+    filtered_df = reception_df[reception_df["thoiGianLayMau"].isna()]
 
     # Rename columns for display
-    reception_df = reception_df.rename(columns={
+    filtered_df = filtered_df.rename(columns={
+        "PID": "PID",
+        "tenBenhNhan": "Họ tên",
         "thoiGianNhanMau": "Thời gian nhận mẫu",
         "nguoiNhan": "Người nhận",
         "thoiGianLayMau": "Thời gian lấy máu",
         "nguoiLayMau": "Người lấy máu",
     })
 
-    st.dataframe(reception_df, use_container_width=True)
+    # Select only relevant columns for display
+    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu"]]
 
-    # Mark as received
-    if not reception_df.empty:
-        selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
-        if st.button("Mark as Received"):
-            now = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-            user_name = st.session_state["user_info"]["tenNhanVien"]
-
-            # Update the corresponding row in the DataFrame
-            index = reception_df[reception_df["PID"] == selected_pid].index[0]
-            reception_df.loc[index, "Thời gian lấy máu"] = now
-            reception_df.loc[index, "Người lấy máu"] = user_name
-
-            # Rename columns back to original names before updating the sheet
-            updated_df = reception_df.rename(columns={
-                "Thời gian nhận mẫu": "thoiGianNhanMau",
-                "Người nhận": "nguoiNhan",
-                "Thời gian lấy máu": "thoiGianLayMau",
-                "Người lấy máu": "nguoiLayMau",
-            })
-
-            # Convert all data to strings to ensure JSON serialization compatibility
-            updated_values = updated_df.astype(str).values.tolist()
-
-            # Update the Google Sheet
-            body = {"values": [updated_df.columns.tolist()] + updated_values}
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=RECEPTION_SHEET_ID,
-                range=RECEPTION_SHEET_RANGE,
-                valueInputOption="USER_ENTERED",
-                body=body
-            ).execute()
-
-            st.success(f"PID {selected_pid} marked as received.")
-
-
-
-
-
-            
-def display_registration_tab():
-    """Displays the New Registration tab."""
-    st.title("Register New PID")
-    pid = st.text_input("Enter PID:")
-
-    if st.button("Register PID"):
-        user_info = st.session_state.get("user_info", {})
-        if pid:
-            try:
-                register_pid(pid, user_info.get("tenNhanVien", "Unknown"))
-                st.success(f"PID {pid} registered successfully.")
-            except Exception as e:
-                st.error(f"Error registering PID: {e}")
-        else:
-            st.error("Please enter a PID.")
+    # Display the table
+    st.write("### Pending Patients")
+    st.dataframe(filtered_df, use_container_width=True)
 
 # Main App Logic
 if not st.session_state.get('is_logged_in', False):
