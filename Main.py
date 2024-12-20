@@ -65,19 +65,23 @@ def fetch_patient_name(pid):
 
         if response.status_code == 200:
             try:
-                # Parse the XML response with namespaces
-                root = ET.fromstring(response.content)
-                namespace = {'ns': 'http://schemas.datacontract.org/2004/07/HSoftAPI.Models.bvhv'}
+                # Parse the JSON response
+                data = response.json()
                 
-                # Find the 'hoten' field within the namespace
-                hoten = root.find(".//ns:hoten", namespace)
-                if hoten is not None and hoten.text:
-                    return hoten.text.strip()
+                # Check if 'data' exists and contains entries
+                if 'data' in data and len(data['data']) > 0:
+                    patient_info = data['data'][0]
+                    hoten = patient_info.get("hoten")
+                    if hoten:
+                        return hoten.strip()
+                    else:
+                        st.error("The response does not contain a valid 'hoten' field.")
+                        return None
                 else:
-                    st.error("The response does not contain a valid 'hoten' field.")
+                    st.error("No patient data found in the response.")
                     return None
-            except ET.ParseError as e:
-                st.error(f"Error parsing XML response: {e}")
+            except ValueError as e:
+                st.error(f"Error parsing JSON response: {e}")
                 st.write(f"API Response: {response.content.decode('utf-8')}")
                 return None
         else:
@@ -87,6 +91,7 @@ def fetch_patient_name(pid):
     except requests.RequestException as e:
         st.error(f"Error fetching data from API: {e}")
         return None
+
 
 
 def register_pid_with_name(pid, ten_nhan_vien):
