@@ -88,7 +88,10 @@ def display_reception_tab():
     reception_df = reception_df[reception_df["thoiGianNhanMau"].dt.strftime("%Y-%m-%d") == today_date]
 
     # Filter out rows where 'thoiGianLayMau' is not empty
-    reception_df = reception_df[reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == st.session_state["user_info"]["tenNhanVien"])]
+    reception_df = reception_df[
+        reception_df["thoiGianLayMau"].isna() | 
+        (reception_df["nguoiLayMau"] == st.session_state["user_info"]["tenNhanVien"])
+    ]
 
     # Rename columns for display
     reception_df = reception_df.rename(columns={
@@ -105,18 +108,24 @@ def display_reception_tab():
         selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
         if st.button("Mark as Received"):
             now = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-            reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian lấy máu"] = now
-            reception_df.loc[reception_df["PID"] == selected_pid, "Người lấy máu"] = st.session_state["user_info"]["tenNhanVien"]
-            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [
-                [
-                    selected_pid,
-                    reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian nhận mẫu"].values[0],
-                    reception_df.loc[reception_df["PID"] == selected_pid, "Người nhận"].values[0],
-                    now,
-                    st.session_state["user_info"]["tenNhanVien"]
-                ]
-            ])
+            user_name = st.session_state["user_info"]["tenNhanVien"]
+
+            # Prepare the data for updating
+            row_data = [
+                selected_pid,
+                reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian nhận mẫu"].values[0],
+                reception_df.loc[reception_df["PID"] == selected_pid, "Người nhận"].values[0],
+                now,  # Update 'Thời gian lấy máu'
+                user_name  # Update 'Người lấy máu'
+            ]
+
+            # Ensure all values are strings
+            row_data = [str(item) for item in row_data]
+
+            # Append updated row back to Google Sheet
+            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [row_data])
             st.success(f"PID {selected_pid} marked as received.")
+
 
 
             
