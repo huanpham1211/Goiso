@@ -67,33 +67,57 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
 
-    # Refresh button logic
-    if st.button("Refresh"):
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    else:
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-
+    # Fetch data from the sheet
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
     if reception_df.empty:
         st.write("No PIDs registered yet.")
         return
 
+    # Ensure required columns exist
     required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
+    # Filter data to only show entries from the current day
+    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+    today_date = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
     reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-    reception_df = reception_df.sort_values(by="thoiGianNhanMau")
+    reception_df["thoiGianLayMau"] = pd.to_datetime(reception_df["thoiGianLayMau"], errors="coerce")
+
+    reception_df = reception_df[reception_df["thoiGianNhanMau"].dt.strftime("%Y-%m-%d") == today_date]
+
+    # Filter out rows where 'thoiGianLayMau' is not empty
+    reception_df = reception_df[reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == st.session_state["user_info"]["tenNhanVien"])]
+
+    # Rename columns for display
+    reception_df = reception_df.rename(columns={
+        "thoiGianNhanMau": "Thời gian nhận mẫu",
+        "nguoiNhan": "Người nhận",
+        "thoiGianLayMau": "Thời gian lấy máu",
+        "nguoiLayMau": "Người lấy máu",
+    })
 
     st.dataframe(reception_df, use_container_width=True)
 
-    selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
-    if st.button("Mark as Received"):
-        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-        user_info = st.session_state["user_info"]
-        append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
-        st.success(f"PID {selected_pid} marked as received.")
+    # Mark as received
+    if not reception_df.empty:
+        selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
+        if st.button("Mark as Received"):
+            now = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+            reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian lấy máu"] = now
+            reception_df.loc[reception_df["PID"] == selected_pid, "Người lấy máu"] = st.session_state["user_info"]["tenNhanVien"]
+            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [
+                [
+                    selected_pid,
+                    reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian nhận mẫu"].values[0],
+                    reception_df.loc[reception_df["PID"] == selected_pid, "Người nhận"].values[0],
+                    now,
+                    st.session_state["user_info"]["tenNhanVien"]
+                ]
+            ])
+            st.success(f"PID {selected_pid} marked as received.")
+
 
             
 def display_registration_tab():
