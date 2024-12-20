@@ -149,17 +149,11 @@ def display_registration_tab():
 
     # Normalize null values
     reception_df = reception_df.replace("", None)  # Convert blank strings to None
-    reception_df["thoiGianLayMau"] = reception_df["thoiGianLayMau"].fillna(value=None)
-    reception_df["nguoiLayMau"] = reception_df["nguoiLayMau"].fillna(value=None)
 
     # Filter rows where 'thoiGianLayMau' or 'nguoiLayMau' is empty
     filtered_df = reception_df[
         reception_df["thoiGianLayMau"].isna() & reception_df["nguoiLayMau"].isna()
     ]
-
-    # Debugging Output (Optional: View raw filtered data)
-    # st.write("Debug - Filtered DataFrame")
-    # st.dataframe(filtered_df)
 
     # Sort by 'thoiGianNhanMau' in ascending order
     filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
@@ -181,6 +175,7 @@ def display_registration_tab():
         st.dataframe(filtered_df, use_container_width=True)
     else:
         st.write("No patients pending collection.")
+
 
 
 
