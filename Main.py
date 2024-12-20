@@ -177,8 +177,6 @@ def display_registration_tab():
         st.write("No patients pending collection.")
 
 
-
-
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
@@ -190,31 +188,67 @@ def display_reception_tab():
         return
 
     # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
-    # Filter rows where 'thoiGianLayMau' is empty
-    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-    filtered_df = reception_df[reception_df["thoiGianLayMau"].isna()]
+    # Normalize null values
+    reception_df = reception_df.replace("", None)  # Convert blank strings to None
+
+    # Current logged-in user's name
+    user_name = st.session_state["user_info"]["tenNhanVien"]
+
+    # Filter rows where 'thoiGianLayMau' or 'nguoiLayMau' is empty, or 'nguoiLayMau' matches the logged-in user
+    filtered_df = reception_df[
+        reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == user_name)
+    ]
+
+    # Sort by 'thoiGianNhanMau' in ascending order
+    filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
+    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
     # Rename columns for display
     filtered_df = filtered_df.rename(columns={
         "PID": "PID",
         "tenBenhNhan": "Họ tên",
         "thoiGianNhanMau": "Thời gian nhận mẫu",
-        "nguoiNhan": "Người nhận",
         "thoiGianLayMau": "Thời gian lấy máu",
         "nguoiLayMau": "Người lấy máu",
     })
 
     # Select only relevant columns for display
-    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu"]]
+    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu"]]
 
     # Display the table
-    st.write("### Pending Patients")
-    st.dataframe(filtered_df, use_container_width=True)
+    if not filtered_df.empty:
+        st.write("### Patients for Current Receptionist")
+        st.dataframe(filtered_df, use_container_width=True)
+    else:
+        st.write("No patients pending or assigned to you.")
+
+    # Optionally, implement a Mark as Received button
+    if not filtered_df.empty:
+        selected_pid = st.selectbox("Select a PID to mark as received:", filtered_df["PID"].tolist())
+        if st.button("Mark as Received"):
+            # Update thoiGianLayMau and nguoiLayMau for the selected PID
+            now = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
+            reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = now
+            reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
+
+            # Push updated data back to Google Sheets
+            updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+            body = {"values": updated_values}
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=RECEPTION_SHEET_ID,
+                range=RECEPTION_SHEET_RANGE,
+                valueInputOption="USER_ENTERED",
+                body=body
+            ).execute()
+
+            st.success(f"PID {selected_pid} marked as received.")
+            st.experimental_rerun()  # Refresh the tab
+
 
 # Main App Logic
 if not st.session_state.get('is_logged_in', False):
