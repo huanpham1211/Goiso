@@ -123,8 +123,11 @@ def display_reception_tab():
                 "Người lấy máu": "nguoiLayMau",
             })
 
-            # Push the updated DataFrame back to the Google Sheet
-            body = {"values": [updated_df.columns.tolist()] + updated_df.values.tolist()}
+            # Convert all data to strings to ensure JSON serialization compatibility
+            updated_values = updated_df.astype(str).values.tolist()
+
+            # Update the Google Sheet
+            body = {"values": [updated_df.columns.tolist()] + updated_values}
             sheets_service.spreadsheets().values().update(
                 spreadsheetId=RECEPTION_SHEET_ID,
                 range=RECEPTION_SHEET_RANGE,
@@ -133,6 +136,7 @@ def display_reception_tab():
             ).execute()
 
             st.success(f"PID {selected_pid} marked as received.")
+
 
 
 
