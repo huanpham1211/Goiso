@@ -68,7 +68,8 @@ if st.session_state.logged_in_user is None:
         if user:
             st.session_state.logged_in_user = user
             st.success("Login successful!")
-            st.experimental_rerun()
+            # Clear inputs to simulate rerun
+            st.session_state["rerun"] = True
         else:
             st.error("Invalid credentials")
 else:
@@ -88,6 +89,7 @@ else:
                 timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
                 append_to_google_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [pid, timestamp, user['maNVYT']])
                 st.success(f"PID {pid} registered successfully.")
+                st.session_state["rerun"] = True  # Set flag for rerun
             else:
                 st.error("Please enter a PID.")
 
@@ -108,11 +110,16 @@ else:
                         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
                         append_to_google_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [row['PID'], timestamp, user['maNVYT']])
                         st.success(f"PID {row['PID']} received.")
-                        st.experimental_rerun()
+                        st.session_state["rerun"] = True  # Set flag for rerun
         else:
             st.write("No PIDs available for reception.")
 
     # Logout Button
     if st.sidebar.button("Logout"):
         st.session_state.logged_in_user = None
-        st.experimental_rerun()
+        st.session_state["rerun"] = True  # Set flag for rerun
+
+# Trigger rerun
+if st.session_state.get("rerun", False):
+    st.session_state["rerun"] = False
+    st.experimental_set_query_params()  # Forces a rerun by resetting parameters
