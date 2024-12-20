@@ -110,21 +110,30 @@ def display_reception_tab():
             now = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
             user_name = st.session_state["user_info"]["tenNhanVien"]
 
-            # Prepare the data for updating
-            row_data = [
-                selected_pid,
-                reception_df.loc[reception_df["PID"] == selected_pid, "Thời gian nhận mẫu"].values[0],
-                reception_df.loc[reception_df["PID"] == selected_pid, "Người nhận"].values[0],
-                now,  # Update 'Thời gian lấy máu'
-                user_name  # Update 'Người lấy máu'
-            ]
+            # Update the corresponding row in the DataFrame
+            index = reception_df[reception_df["PID"] == selected_pid].index[0]
+            reception_df.loc[index, "Thời gian lấy máu"] = now
+            reception_df.loc[index, "Người lấy máu"] = user_name
 
-            # Ensure all values are strings
-            row_data = [str(item) for item in row_data]
+            # Rename columns back to original names before updating the sheet
+            updated_df = reception_df.rename(columns={
+                "Thời gian nhận mẫu": "thoiGianNhanMau",
+                "Người nhận": "nguoiNhan",
+                "Thời gian lấy máu": "thoiGianLayMau",
+                "Người lấy máu": "nguoiLayMau",
+            })
 
-            # Append updated row back to Google Sheet
-            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [row_data])
+            # Push the updated DataFrame back to the Google Sheet
+            body = {"values": [updated_df.columns.tolist()] + updated_df.values.tolist()}
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=RECEPTION_SHEET_ID,
+                range=RECEPTION_SHEET_RANGE,
+                valueInputOption="USER_ENTERED",
+                body=body
+            ).execute()
+
             st.success(f"PID {selected_pid} marked as received.")
+
 
 
 
