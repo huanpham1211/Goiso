@@ -66,32 +66,36 @@ def register_pid(pid, ten_nhan_vien):
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
-    refresh = st.button("Refresh")  # Refresh button
 
-    if refresh or 'last_registered_pid' in st.session_state:
+    # Refresh button logic
+    if st.button("Refresh"):
         reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-        if reception_df.empty:
-            st.write("No PIDs registered yet.")
-            return
+    else:
+        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
 
-        required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
-        if not required_columns.issubset(reception_df.columns):
-            st.error(f"The sheet must contain these columns: {required_columns}")
-            return
+    if reception_df.empty:
+        st.write("No PIDs registered yet.")
+        return
 
-        reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
-        reception_df = reception_df.sort_values(by="thoiGianNhanMau")
+    required_columns = {"PID", "thoiGianNhanMau", "nguoiNhan", "thoiGianLayMau", "nguoiLayMau"}
+    if not required_columns.issubset(reception_df.columns):
+        st.error(f"The sheet must contain these columns: {required_columns}")
+        return
 
-        st.dataframe(reception_df, use_container_width=True)
+    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
+    reception_df = reception_df.sort_values(by="thoiGianNhanMau")
 
-        selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
-        if st.button("Mark as Received"):
-            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-            timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-            user_info = st.session_state["user_info"]
-            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
-            st.success(f"PID {selected_pid} marked as received.")
+    st.dataframe(reception_df, use_container_width=True)
 
+    selected_pid = st.selectbox("Select a PID to mark as received:", reception_df["PID"].tolist())
+    if st.button("Mark as Received"):
+        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+        user_info = st.session_state["user_info"]
+        append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, [[selected_pid, timestamp, user_info["tenNhanVien"]]])
+        st.success(f"PID {selected_pid} marked as received.")
+
+            
 def display_registration_tab():
     """Displays the New Registration tab."""
     st.title("Register New PID")
@@ -100,8 +104,11 @@ def display_registration_tab():
     if st.button("Register PID"):
         user_info = st.session_state.get("user_info", {})
         if pid:
-            register_pid(pid, user_info.get("tenNhanVien", "Unknown"))
-            st.success(f"PID {pid} registered successfully.")
+            try:
+                register_pid(pid, user_info.get("tenNhanVien", "Unknown"))
+                st.success(f"PID {pid} registered successfully.")
+            except Exception as e:
+                st.error(f"Error registering PID: {e}")
         else:
             st.error("Please enter a PID.")
 
