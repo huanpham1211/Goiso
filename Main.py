@@ -147,13 +147,22 @@ def display_registration_tab():
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
+    # Normalize null values
+    reception_df = reception_df.replace("", None)  # Convert blank strings to None
+    reception_df["thoiGianLayMau"] = reception_df["thoiGianLayMau"].fillna(value=None)
+    reception_df["nguoiLayMau"] = reception_df["nguoiLayMau"].fillna(value=None)
+
     # Filter rows where 'thoiGianLayMau' or 'nguoiLayMau' is empty
-    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
     filtered_df = reception_df[
         reception_df["thoiGianLayMau"].isna() & reception_df["nguoiLayMau"].isna()
     ]
 
+    # Debugging Output (Optional: View raw filtered data)
+    # st.write("Debug - Filtered DataFrame")
+    # st.dataframe(filtered_df)
+
     # Sort by 'thoiGianNhanMau' in ascending order
+    filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
     # Rename columns for display
@@ -167,8 +176,12 @@ def display_registration_tab():
     filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu"]]
 
     # Display the table
-    st.write("### Registered Patients")
-    st.dataframe(filtered_df, use_container_width=True)
+    if not filtered_df.empty:
+        st.write("### Registered Patients")
+        st.dataframe(filtered_df, use_container_width=True)
+    else:
+        st.write("No patients pending collection.")
+
 
 
 def display_reception_tab():
