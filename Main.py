@@ -60,20 +60,34 @@ def append_to_sheet(sheet_id, range_name, values):
 def fetch_patient_name(pid):
     """Fetches the patient name from the API."""
     url = f"https://api.bvhungvuong.vn/api/dangkykham/?ip=&idbv=&id=&mabn={pid}&ngay="
-    response = requests.get(url)
+    try:
+        response = requests.get(url)
 
-    if response.status_code == 200:
-        # Parse the XML response
-        root = ET.fromstring(response.content)
-        hoten = root.find(".//hoten")
-        if hoten is not None:
-            return hoten.text.strip()
+        if response.status_code == 200:
+            try:
+                # Parse the XML response with namespaces
+                root = ET.fromstring(response.content)
+                namespace = {'ns': 'http://schemas.datacontract.org/2004/07/HSoftAPI.Models.bvhv'}
+                
+                # Find the 'hoten' field within the namespace
+                hoten = root.find(".//ns:hoten", namespace)
+                if hoten is not None and hoten.text:
+                    return hoten.text.strip()
+                else:
+                    st.error("The response does not contain a valid 'hoten' field.")
+                    return None
+            except ET.ParseError as e:
+                st.error(f"Error parsing XML response: {e}")
+                st.write(f"API Response: {response.content.decode('utf-8')}")
+                return None
         else:
-            st.error("Unable to fetch the patient's name.")
+            st.error(f"Failed to fetch patient data. HTTP Status: {response.status_code}")
+            st.write(f"API Response: {response.content.decode('utf-8')}")
             return None
-    else:
-        st.error(f"Failed to fetch patient data. HTTP Status: {response.status_code}")
+    except requests.RequestException as e:
+        st.error(f"Error fetching data from API: {e}")
         return None
+
 
 def register_pid_with_name(pid, ten_nhan_vien):
     """Registers a new PID and fetches the patient name."""
