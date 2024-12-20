@@ -5,7 +5,6 @@ import json
 import pytz
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import time
 
 # Constants
 NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
@@ -26,17 +25,18 @@ credentials = service_account.Credentials.from_service_account_info(
 # Initialize the Google Sheets API client
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
-
 # Helper functions
 def read_google_sheet(sheet_id, sheet_range):
-    sheet = service.spreadsheets()
+    """Reads data from a Google Sheet."""
+    sheet = sheets_service.spreadsheets()  # Use sheets_service
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     values = result.get('values', [])
     return pd.DataFrame(values[1:], columns=values[0]) if values else pd.DataFrame()
 
 def append_to_google_sheet(sheet_id, sheet_range, data):
+    """Appends data to a Google Sheet."""
     body = {"values": [data]}
-    service.spreadsheets().values().append(
+    sheets_service.spreadsheets().values().append(  # Use sheets_service
         spreadsheetId=sheet_id,
         range=sheet_range,
         valueInputOption="USER_ENTERED",
@@ -44,6 +44,7 @@ def append_to_google_sheet(sheet_id, sheet_range, data):
     ).execute()
 
 def check_login(username, password):
+    """Checks login credentials."""
     user = nhanvien_df[
         (nhanvien_df['taiKhoan'].astype(str) == str(username)) &
         (nhanvien_df['matKhau'].astype(str) == str(password))
