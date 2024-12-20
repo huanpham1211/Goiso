@@ -116,8 +116,11 @@ def register_pid_with_name(pid, ten_nhan_vien):
 def display_registration_tab():
     """Displays the New Registration tab."""
     st.title("Register New PID")
+    
+    # Input for new PID
     pid = st.text_input("Enter PID:")
-
+    
+    # Register New PID
     if st.button("Register PID"):
         user_info = st.session_state.get("user_info", {})
         if pid:
@@ -131,6 +134,42 @@ def display_registration_tab():
                 st.error(f"Error registering PID: {e}")
         else:
             st.error("Please enter a PID.")
+
+    # Fetch data from the sheet
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    if reception_df.empty:
+        st.write("No PIDs registered yet.")
+        return
+
+    # Ensure required columns exist
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau"}
+    if not required_columns.issubset(reception_df.columns):
+        st.error(f"The sheet must contain these columns: {required_columns}")
+        return
+
+    # Filter rows where 'thoiGianLayMau' or 'nguoiLayMau' is empty
+    reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
+    filtered_df = reception_df[
+        reception_df["thoiGianLayMau"].isna() & reception_df["nguoiLayMau"].isna()
+    ]
+
+    # Sort by 'thoiGianNhanMau' in ascending order
+    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
+
+    # Rename columns for display
+    filtered_df = filtered_df.rename(columns={
+        "PID": "PID",
+        "tenBenhNhan": "Họ tên",
+        "thoiGianNhanMau": "Thời gian nhận mẫu",
+    })
+
+    # Select only relevant columns for display
+    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu"]]
+
+    # Display the table
+    st.write("### Registered Patients")
+    st.dataframe(filtered_df, use_container_width=True)
+
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
