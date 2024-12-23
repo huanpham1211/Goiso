@@ -316,9 +316,6 @@ def display_blood_draw_completion_tab():
         st.success("Lấy máu hoàn tất. Quay lại thẻ 'Gọi bệnh nhân'.")
 
 
-
-import time
-
 def display_table_tab():
     """Displays the Table tab for managing PIDs."""
     st.title("DANH SÁCH CHỜ GỌI SỐ")
@@ -378,9 +375,11 @@ def display_table_tab():
                 st.write("Chưa có số thứ tự tiếp theo.")
 
     # Automatically fetch and display the table every 15 seconds
+    import time
     while True:
         fetch_and_display_table()
         time.sleep(15)
+
 
 
 
