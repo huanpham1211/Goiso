@@ -205,13 +205,24 @@ def display_reception_tab():
     # Add a new column to mark duplicates
     reception_df["is_duplicate"] = reception_df.duplicated(subset=["PID"], keep=False)
 
-    # Filter rows where the current user or unprocessed rows are shown
-    filtered_df = reception_df[
-        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-        (reception_df["ketThucLayMau"] != "1")
-    ]
+    # Filter rows based on the following criteria:
+    # - Non-duplicates can be seen by all tables
+    # - Duplicates can only be seen by Table 4 or Table 5 users
+    if selected_table in ["4", "5"]:
+        filtered_df = reception_df[
+            ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+            (reception_df["ketThucLayMau"] != "1")
+        ]
+    else:
+        filtered_df = reception_df[
+            (((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+             (reception_df["is_duplicate"] == False)) &
+            (reception_df["ketThucLayMau"] != "1")
+        ]
 
-    # Sort by is_duplicate (True first), then by thoiGianNhanMau (earliest first)
+    # Sort the filtered rows:
+    # 1. Duplicates first (`is_duplicate=True`)
+    # 2. By `thoiGianNhanMau` in ascending order
     filtered_df = filtered_df.sort_values(by=["is_duplicate", "thoiGianNhanMau"], ascending=[False, True])
 
     # Display only relevant actions without showing the entire dataframe
@@ -257,6 +268,7 @@ def display_reception_tab():
                 st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
     else:
         st.write("Chưa có bệnh nhân.")
+
 
 
 
