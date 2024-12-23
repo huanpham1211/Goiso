@@ -187,11 +187,30 @@ def display_reception_tab():
             col1.write(f"**PID:** {pid}")
             col2.write(f"**Họ tên:** {ten_benh_nhan}")
             if col3.button("Receive", key=f"receive_{pid}"):
+                # Fill in the `NhanMau` sheet with current data
+                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
+                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
+
+                # Prepare the updated values
+                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+                sheets_service.spreadsheets().values().update(
+                    spreadsheetId=RECEPTION_SHEET_ID,
+                    range=RECEPTION_SHEET_RANGE,
+                    valueInputOption="USER_ENTERED",
+                    body={"values": updated_values}
+                ).execute()
+
+                # Set session variables for Blood Draw Completion
                 st.session_state["current_pid"] = pid
                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
                 st.session_state["active_tab"] = "Blood Draw Completion"
+                st.success(f"Blood draw started for PID {pid}.")
     else:
         st.write("Chưa có bệnh nhân.")
+
 
 
 
