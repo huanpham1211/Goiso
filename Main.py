@@ -6,6 +6,7 @@ import pytz
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import requests
+import time
 
 # Google Sheets document IDs and ranges
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
@@ -199,13 +200,12 @@ def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
 
-    # Auto-refresh the page every 30 seconds
-    st_autorefresh(interval=30 * 1000, key="table_refresh")
-
     # Fetch data from the NhanMau sheet
     nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
     if nhanmau_df.empty:
         st.write("No data available.")
+        time.sleep(30)  # Pause for 30 seconds before re-fetching
+        display_table_tab()
         return
 
     # Ensure required columns exist
@@ -236,6 +236,10 @@ def display_table_tab():
         st.dataframe(filtered_df, use_container_width=True)
     else:
         st.write("No pending PIDs.")
+
+    # Simulate auto-refresh by re-calling the function after 30 seconds
+    time.sleep(30)
+    display_table_tab()
 
         
 # Main App Logic with an additional tab
