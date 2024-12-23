@@ -237,18 +237,16 @@ def display_table_tab():
     else:
         st.write("No pending PIDs.")
 
-    # Auto-refresh logic
+    # Auto-refresh mechanism using query parameters
     refresh_interval = 30  # seconds
     countdown_placeholder = st.empty()
-
-    # Display countdown timer
     for i in range(refresh_interval, 0, -1):
         countdown_placeholder.write(f"Refreshing in {i} seconds...")
         time.sleep(1)
-        if st.session_state.get("selected_tab") != "Table Overview":
-            break  # Stop countdown if user switches tabs
 
-    countdown_placeholder.empty()
+    # Trigger a refresh by setting query parameters
+    st.experimental_set_query_params(refresh="true")
+
 
 
         
