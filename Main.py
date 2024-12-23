@@ -180,65 +180,89 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.title("Lấy máu")
 
-    # Fetch the Reception sheet data
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if reception_df.empty:
-        st.write("No PIDs registered yet.")
-        return
+    # Create a placeholder for content to refresh dynamically
+    placeholder = st.empty()
 
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
+    def refresh_content():
+        # Fetch the Reception sheet data
+        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+        if reception_df.empty:
+            placeholder.write("No PIDs registered yet.")
+            return
 
-    user_name = st.session_state["user_info"]["tenNhanVien"]
-    selected_table = st.session_state.get("selected_table", None)
-    reception_df = reception_df.replace("", None)
+        # Ensure required columns exist
+        required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
+        if not required_columns.issubset(reception_df.columns):
+            placeholder.error(f"The sheet must contain these columns: {required_columns}")
+            return
 
-    # Filter rows where the current user or unprocessed rows are shown
-    filtered_df = reception_df[
-        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-        (reception_df["ketThucLayMau"] != "1")
-    ]
-    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
+        user_name = st.session_state["user_info"]["tenNhanVien"]
+        selected_table = st.session_state.get("selected_table", None)
+        reception_df = reception_df.replace("", None)
 
-    # Display only relevant actions without showing the entire dataframe
-    if not filtered_df.empty:
-        for idx, row in filtered_df.iterrows():
-            pid = row["PID"]
-            ten_benh_nhan = row["tenBenhNhan"]
-            col1, col2, col3 = st.columns([4, 4, 2])
-            col1.write(f"**PID:** {pid}")
-            col2.write(f"**Họ tên:** {ten_benh_nhan}")
-            
-            # Generate a unique key for each button by including `pid` and `idx`
-            button_key = f"receive_{pid}_{idx}"
-            if col3.button("Receive", key=button_key):
-                # Fill in the `NhanMau` sheet with current data
-                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+        # Convert `thoiGianNhanMau` to datetime for filtering by the same day
+        reception_df["thoiGianNhanMau"] = pd.to_datetime(reception_df["thoiGianNhanMau"], errors="coerce")
 
-                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
-                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
-                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
+        # Check for duplicates within the same day
+        reception_df["duplication_count"] = reception_df.groupby("PID")["thoiGianNhanMau"].rank(method="first")
 
-                # Prepare the updated values
-                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-                sheets_service.spreadsheets().values().update(
-                    spreadsheetId=RECEPTION_SHEET_ID,
-                    range=RECEPTION_SHEET_RANGE,
-                    valueInputOption="USER_ENTERED",
-                    body={"values": updated_values}
-                ).execute()
+        # Filter rows where the current user or unprocessed rows are shown
+        filtered_df = reception_df[
+            (((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+            (reception_df["ketThucLayMau"] != "1")) &
+            (
+                # Table 4 and 5 can see all rows
+                ((selected_table in ["4", "5"]) | 
+                 # Other tables can only see non-duplicates or the first occurrence of a duplicate
+                 (reception_df["duplication_count"] == 1))
+            )
+        ]
+        filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-                # Set session variables for Blood Draw Completion
-                st.session_state["current_pid"] = pid
-                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
+        # Display only relevant actions without showing the entire dataframe
+        with placeholder.container():
+            if not filtered_df.empty:
+                for idx, row in filtered_df.iterrows():
+                    pid = row["PID"]
+                    ten_benh_nhan = row["tenBenhNhan"]
+                    col1, col2, col3 = st.columns([4, 4, 2])
+                    col1.write(f"**PID:** {pid}")
+                    col2.write(f"**Họ tên:** {ten_benh_nhan}")
 
-                st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
-    else:
-        st.write("Chưa có bệnh nhân.")
+                    # Generate a unique key for each button by including `pid` and `idx`
+                    button_key = f"receive_{pid}_{idx}"
+                    if col3.button("Receive", key=button_key):
+                        # Fill in the `NhanMau` sheet with current data
+                        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+                        current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+                        reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
+                        reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
+                        reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
+
+                        # Prepare the updated values
+                        updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+                        sheets_service.spreadsheets().values().update(
+                            spreadsheetId=RECEPTION_SHEET_ID,
+                            range=RECEPTION_SHEET_RANGE,
+                            valueInputOption="USER_ENTERED",
+                            body={"values": updated_values}
+                        ).execute()
+
+                        # Set session variables for Blood Draw Completion
+                        st.session_state["current_pid"] = pid
+                        st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
+
+                        st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
+            else:
+                placeholder.write("Chưa có bệnh nhân.")
+
+    # Display refresh button to reload the content
+    if st.button("Refresh"):
+        refresh_content()
+
+    # Call refresh_content initially to load data
+    refresh_content()
 
 
 
