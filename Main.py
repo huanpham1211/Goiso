@@ -211,12 +211,11 @@ def display_reception_tab():
                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
                 st.session_state["active_tab"] = "Blood Draw Completion"
 
-                # Inform the user and exit the loop
-                st.success(f"Blood draw started for PID {pid}.")
-                return  # Exit to avoid duplicate actions after state update
+                # Render Blood Draw Completion tab
+                display_blood_draw_completion_tab()
+                return  # Exit to avoid multiple UI updates
     else:
         st.write("Chưa có bệnh nhân.")
-
 
 
 
