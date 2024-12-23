@@ -321,7 +321,7 @@ else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
-     # Sidebar navigation
+    # Sidebar navigation
     tabs = ["Register New PID", "Reception", "Table Overview"]
     if "current_pid" in st.session_state:
         tabs.append("Blood Draw Completion")
@@ -338,7 +338,6 @@ else:
     elif selected_tab == "Blood Draw Completion":
         display_blood_draw_completion_tab()
 
-
     # Logout Button Handling
     if st.sidebar.button("Logout"):
         # Update `thoiGianLogout` in the Login Log Sheet
@@ -349,9 +348,12 @@ else:
         login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
 
         if not login_log_df.empty:
-            # Find the row corresponding to the current user's login
+            # Find the row corresponding to the current user's login and table
             login_log_df = login_log_df.replace("", None)
-            user_row_index = login_log_df[login_log_df["tenNhanVien"] == user_info["tenNhanVien"]].index.tolist()
+            user_row_index = login_log_df[
+                (login_log_df["tenNhanVien"] == user_info["tenNhanVien"]) &
+                (login_log_df["table"] == st.session_state["selected_table"])
+            ].index.tolist()
 
             if user_row_index:
                 user_row_index = user_row_index[0]  # Get the first matching index
@@ -368,35 +370,4 @@ else:
 
         # Clear session state
         st.session_state.clear()
-
-    # Handle browser/tab close event
-    def handle_tab_close():
-        # Check if user info exists in session
-        if "user_info" in st.session_state:
-            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-            logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-
-            # Fetch current login log data
-            login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-
-            if not login_log_df.empty:
-                # Find the row corresponding to the current user's login
-                login_log_df = login_log_df.replace("", None)
-                user_row_index = login_log_df[login_log_df["tenNhanVien"] == st.session_state["user_info"]["tenNhanVien"]].index.tolist()
-
-                if user_row_index:
-                    user_row_index = user_row_index[0]  # Get the first matching index
-                    login_log_df.loc[user_row_index, "thoiGianLogout"] = logout_time
-
-                    # Push updated data back to Google Sheets
-                    updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
-                    sheets_service.spreadsheets().values().update(
-                        spreadsheetId=LOGIN_LOG_SHEET_ID,
-                        range=LOGIN_LOG_SHEET_RANGE,
-                        valueInputOption="USER_ENTERED",
-                        body={"values": updated_values}
-                    ).execute()
-
-    # Call `handle_tab_close()` when the app is closed or refreshed
-    st.session_state["on_close_callback"] = handle_tab_close
 
