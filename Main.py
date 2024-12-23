@@ -291,7 +291,6 @@ def display_table_tab():
     placeholder = st.empty()
     refresh_interval = 30  # seconds
 
-    # Fetch and display data inside a loop
     while True:
         with placeholder.container():
             # Fetch data from the NhanMau sheet
@@ -300,16 +299,17 @@ def display_table_tab():
                 st.write("No pending PIDs.")
             else:
                 # Ensure required columns exist
-                required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
+                required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table", "ketThucLayMau"}
                 if not required_columns.issubset(nhanmau_df.columns):
                     st.error(f"The sheet must contain these columns: {required_columns}")
                 else:
                     # Normalize null values
                     nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
-                    # Filter rows where 'thoiGianLayMau' is empty
-                    filtered_df = nhanmau_df[nmhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")]
-
+                    # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
+                    filtered_df = nhanmau_df[
+                        nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
+                    ]
 
                     # Rename columns for display
                     filtered_df = filtered_df.rename(columns={
@@ -333,6 +333,7 @@ def display_table_tab():
 
         # Clear all output within the placeholder before the next refresh
         placeholder.empty()
+
 
 
 
