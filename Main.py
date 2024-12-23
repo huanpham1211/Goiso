@@ -323,7 +323,7 @@ def display_table_tab():
 
                     # Rename columns for display
                     filtered_df = filtered_df.rename(columns={
-                        "PID": "PID",
+                        "PID": "Mã",
                         "tenBenhNhan": "Họ tên",
                         "table": "Bàn"
                     })
