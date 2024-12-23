@@ -202,17 +202,8 @@ def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
 
-    # Set a timer for auto-refresh
-    if "last_refresh_time" not in st.session_state:
-        st.session_state["last_refresh_time"] = time.time()
-
-    # Check if 30 seconds have passed since the last refresh
-    if time.time() - st.session_state["last_refresh_time"] > 30:
-        st.session_state["last_refresh_time"] = time.time()
-
     # Fetch data from the NhanMau sheet
     nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-
     if nhanmau_df.empty:
         st.write("No pending PIDs.")
         return
@@ -246,16 +237,19 @@ def display_table_tab():
     else:
         st.write("No pending PIDs.")
 
-    # Auto-refresh UI by showing a countdown
+    # Auto-refresh logic
+    refresh_interval = 30  # seconds
     countdown_placeholder = st.empty()
-    for i in range(30, 0, -1):
+
+    # Display countdown timer
+    for i in range(refresh_interval, 0, -1):
         countdown_placeholder.write(f"Refreshing in {i} seconds...")
         time.sleep(1)
+        if st.session_state.get("selected_tab") != "Table Overview":
+            break  # Stop countdown if user switches tabs
+
     countdown_placeholder.empty()
 
-    # Reset the state for UI refresh
-    st.session_state["last_refresh_time"] = time.time()
-    display_table_tab()
 
         
 # Main App Logic with an additional tab
