@@ -78,7 +78,7 @@ def display_login_page():
     # Fetch login log data
     login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
     restricted_tables = [str(i) for i in range(1, 6)]  # Tables 1–5 are restricted
-    available_tables = ["Nhận mẫu"]  # Table 6 ("Nhận mẫu") is always available
+    available_tables = []  # List to collect available table options
 
     # Determine availability for tables 1–5 based on active logins
     if not login_log_df.empty:
@@ -89,17 +89,22 @@ def display_login_page():
     else:
         available_tables.extend(restricted_tables)  # If no log exists, all tables 1–5 are available
 
-    # Mapping for display
-    table_display_mapping = {"Nhận mẫu": "6"}
-    for table in restricted_tables:
-        table_display_mapping[table] = table
+    # Add "Nhận mẫu" (table 6), which is always available
+    available_tables.append("6")
 
-    # Reverse mapping for processing
+    # Create display mapping for the dropdown
+    table_display_mapping = {table: table for table in restricted_tables}
+    table_display_mapping["6"] = "Nhận mẫu"
+
+    # Reverse mapping for internal use
     display_to_internal_mapping = {v: k for k, v in table_display_mapping.items()}
 
+    # Generate dropdown options using the display mapping
+    dropdown_options = [table_display_mapping[table] for table in available_tables]
+
     # Table selection dropdown
-    selected_display_table = st.selectbox("Select a table to log in:", list(table_display_mapping.keys()))
-    selected_table = table_display_mapping[selected_display_table]
+    selected_display_table = st.selectbox("Select a table to log in:", dropdown_options)
+    selected_table = display_to_internal_mapping[selected_display_table]
 
     # User credentials input
     username = st.text_input("Username")
@@ -145,6 +150,7 @@ def display_login_page():
                 st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
         else:
             st.error("Invalid username or password.")
+
 
 
 
