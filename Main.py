@@ -198,6 +198,8 @@ def display_reception_tab():
     else:
         st.write("No patients to mark as received.")
 
+import time
+
 def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
@@ -242,10 +244,8 @@ def display_table_tab():
                     else:
                         st.write("No pending PIDs.")
 
-            # Countdown timer
-            for i in range(refresh_interval, 0, -1):
-                st.write(f"Refreshing in {i} seconds...", key=f"countdown_{i}")
-                time.sleep(1)
+            # Masked sleep logic (users will not see countdown)
+            time.sleep(refresh_interval)
 
         # Clear all output within the placeholder before the next refresh
         placeholder.empty()
