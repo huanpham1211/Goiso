@@ -209,20 +209,17 @@ def display_reception_tab():
                 # Set session variables for Blood Draw Completion
                 st.session_state["current_pid"] = pid
                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
-                st.session_state["active_tab"] = "Blood Draw Completion"
 
-                # Render Blood Draw Completion tab
-                display_blood_draw_completion_tab()
-                return  # Exit to avoid multiple UI updates
+                st.success(f"Blood draw started for PID {pid}. Please proceed to the Blood Draw Completion tab.")
     else:
-        st.write("Chưa có bệnh nhân.")
+        st.write("No patients to mark as received.")
+
 
 
 
 
 def display_blood_draw_completion_tab():
     """Handles the Blood Draw Completion tab."""
-    # Check if there is an ongoing blood draw
     if "current_pid" not in st.session_state or "current_ten_benh_nhan" not in st.session_state:
         st.write("No ongoing blood draw.")
         return
@@ -255,14 +252,12 @@ def display_blood_draw_completion_tab():
             body={"values": updated_values}
         ).execute()
 
-        st.success(f"Blood draw for PID {pid} marked as completed.")
-
         # Clear session state for current PID
         del st.session_state["current_pid"]
         del st.session_state["current_ten_benh_nhan"]
 
-        # Navigate back to the Reception tab
-        st.session_state["active_tab"] = "Reception"
+        # Notify user and redirect back to the Reception tab
+        st.success("Blood draw marked as completed. Please return to the Reception tab.")
 
 
 
@@ -328,27 +323,23 @@ else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
-      # Dynamically determine the active tab
-    active_tab = st.session_state.get("active_tab", "Reception")
+     # Sidebar navigation
+    tabs = ["Register New PID", "Reception", "Table Overview"]
+    if "current_pid" in st.session_state:
+        tabs.append("Blood Draw Completion")
 
-    if active_tab == "Register New PID":
+    selected_tab = st.sidebar.radio("Navigate", tabs)
+
+    # Render the appropriate tab
+    if selected_tab == "Register New PID":
         display_registration_tab()
-    elif active_tab == "Reception":
+    elif selected_tab == "Reception":
         display_reception_tab()
-    elif active_tab == "Table Overview":
+    elif selected_tab == "Table Overview":
         display_table_tab()
-    elif active_tab == "Blood Draw Completion":
+    elif selected_tab == "Blood Draw Completion":
         display_blood_draw_completion_tab()
 
-    # Sidebar navigation for tabs
-    if active_tab != "Blood Draw Completion":  # Hide navigation while in Blood Draw Completion
-        selected_tab = st.sidebar.radio(
-            "Navigate",
-            ["Register New PID", "Reception", "Table Overview"],
-            index=["Register New PID", "Reception", "Table Overview"].index(active_tab),
-            key="tab_selector"
-        )
-        st.session_state["active_tab"] = selected_tab
 
     # Logout Button Handling
     if st.sidebar.button("Logout"):
