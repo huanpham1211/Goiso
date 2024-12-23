@@ -196,38 +196,47 @@ def display_reception_tab():
         st.write("No patients to mark as received.")
 
 def display_table_tab():
-    """Displays the Table tab showing PID, tenBenhNhan as Họ tên, and table as Bàn."""
+    """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
-    
+
+    # Auto-refresh the page every 30 seconds
+    st_autorefresh(interval=30 * 1000, key="table_refresh")
+
     # Fetch data from the NhanMau sheet
     nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    
     if nhanmau_df.empty:
-        st.write("No data available in the NhanMau sheet.")
+        st.write("No data available.")
         return
-    
+
     # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "table"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
     if not required_columns.issubset(nhanmau_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
+    # Normalize null values
+    nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
+
+    # Filter rows where 'thoiGianLayMau' is empty
+    filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
+
     # Rename columns for display
-    display_df = nhanmau_df.rename(columns={
+    filtered_df = filtered_df.rename(columns={
         "PID": "PID",
         "tenBenhNhan": "Họ tên",
         "table": "Bàn"
     })
 
-    # Select only relevant columns
-    display_df = display_df[["PID", "Họ tên", "Bàn"]]
-    
+    # Select only relevant columns for display
+    filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
+
     # Display the table
-    if not display_df.empty:
-        st.write("### Patient Table Overview")
-        st.dataframe(display_df, use_container_width=True)
+    if not filtered_df.empty:
+        st.write("### Pending PIDs")
+        st.dataframe(filtered_df, use_container_width=True)
     else:
-        st.write("No data to display.")
+        st.write("No pending PIDs.")
+
         
 # Main App Logic with an additional tab
 if not st.session_state.get('is_logged_in', False):
