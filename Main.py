@@ -320,57 +320,63 @@ def display_blood_draw_completion_tab():
 import time
 
 def display_table_tab():
-    """Displays the Table tab for managing PIDs without thoiGianLayMau."""
+    """Displays the Table tab for managing PIDs."""
     st.title("DANH SÁCH CHỜ GỌI SỐ")
-
-    # Placeholder for the table
+    
+    # Create a placeholder for the table content
     placeholder = st.empty()
 
-    # Function to fetch and display the table
     def fetch_and_display_table():
-        # Fetch the latest data from the NhanMau sheet
         nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+
         if nhanmau_df.empty:
-            placeholder.write("No pending PIDs.")
+            with placeholder.container():
+                st.write("Chưa có số thứ tự tiếp theo.")
             return
 
         # Ensure required columns exist
-        required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table", "ketThucLayMau"}
+        required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "table", "ketThucLayMau"}
         if not required_columns.issubset(nhanmau_df.columns):
-            placeholder.error(f"The sheet must contain these columns: {required_columns}")
+            with placeholder.container():
+                st.error(f"The sheet must contain these columns: {required_columns}")
             return
 
         # Normalize null values
-        nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
+        nhanmau_df = nhanmau_df.replace("", None)
 
         # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
         filtered_df = nhanmau_df[
             nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
         ]
 
-        # Rename columns for display
-        filtered_df = filtered_df.rename(columns={
-            "PID": "Mã",
-            "tenBenhNhan": "Họ tên",
-            "table": "Bàn"
-        })
+        # Sort the filtered rows:
+        # 1. Duplicates first (`duplicated=True`)
+        # 2. By `thoiGianNhanMau` in ascending order
+        filtered_df["is_duplicate"] = nhanmau_df.duplicated(subset=["PID"], keep=False)
+        filtered_df = filtered_df.sort_values(by=["is_duplicate", "thoiGianNhanMau"], ascending=[False, True])
 
-        # Select only relevant columns for display
-        filtered_df = filtered_df[["Mã", "Họ tên", "Bàn"]]
+        # Display the table content dynamically using columns
+        with placeholder.container():
+            if not filtered_df.empty:
+                st.write("### Thứ tự")
+                for idx, row in filtered_df.iterrows():
+                    pid = row["PID"]
+                    ten_benh_nhan = row["tenBenhNhan"]
+                    table = row["table"]
 
-        # Display the table
-        if not filtered_df.empty:
-            placeholder.write("### Thứ tự")
-            placeholder.dataframe(filtered_df, use_container_width=True)
-        else:
-            placeholder.write("Chưa có số thứ tự tiếp theo.")
+                    # Create columns for each row
+                    col1, col2, col3 = st.columns([4, 4, 2])
+                    col1.write(f"**PID:** {pid}")
+                    col2.write(f"**Họ tên:** {ten_benh_nhan}")
+                    col3.write(f"**Bàn:** {table}")
+            else:
+                st.write("Chưa có số thứ tự tiếp theo.")
 
-    # Initial fetch and display
-    fetch_and_display_table()
-
-    # Add a refresh button
-    if st.button("Refresh Table"):
+    # Fetch and display the table every 15 seconds
+    while True:
         fetch_and_display_table()
+        time.sleep(15)
+
 
 
 
