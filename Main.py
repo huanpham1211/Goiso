@@ -182,7 +182,7 @@ def display_reception_tab():
 
     if not filtered_df.empty:
         # Filter selectable PIDs for marking as received
-        selectable_pids = filtered_df[filtered_df["thoiGianLayMau"].isna()]["PID"].tolist()
+        selectable_pids = filtered_df[filtered_df["table"].notna()]["PID"].tolist()
         selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
 
         if st.button("Mark as Received"):
