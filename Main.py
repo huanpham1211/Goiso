@@ -245,7 +245,8 @@ def display_table_tab():
         time.sleep(1)
 
     # Trigger a refresh by setting query parameters
-    st.experimental_set_query_params(refresh="true")
+    st.set_query_params(refresh="true")
+
 
 
 
