@@ -28,6 +28,16 @@ credentials = service_account.Credentials.from_service_account_info(
 # Initialize the Google Sheets API client
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
+def fetch_patient_name(pid):
+    """Fetches the patient name from the API."""
+    url = f"https://api.bvhungvuong.vn/api/dangkykham/?ip=&idbv=&id=&mabn={pid}&ngay="
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        patient_data = data.get("data", [])
+        if patient_data:
+            return patient_data[0].get("hoten", "").strip()
+    return None
 
 def fetch_sheet_data(sheet_id, range_name):
     """Fetches data from Google Sheets and returns it as a DataFrame."""
@@ -120,26 +130,23 @@ def display_login_page():
 
 
 def display_registration_tab():
-    """Displays the New Registration tab."""
+    """Displays the Registration tab."""
     st.title("Register New PID")
-    
     pid = st.text_input("Enter PID:")
-    user_info = st.session_state.get("user_info", {})
-    
+
     if st.button("Register PID"):
-        if pid:
-            # Fetch patient name
-            patient_name = f"Patient {pid}"  # Replace with actual API call
-            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-            timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+        user_info = st.session_state["user_info"]
+        patient_name = fetch_patient_name(pid)
+        if patient_name:
+            timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
             append_to_sheet(
                 RECEPTION_SHEET_ID,
                 RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info['tenNhanVien'], "", "", st.session_state['selected_table']]]
+                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", st.session_state["selected_table"]]]
             )
-            st.success(f"PID {pid} registered successfully.")
+            st.success(f"PID {pid} registered successfully with patient name {patient_name}.")
         else:
-            st.error("Please enter a PID.")
+            st.error("Failed to fetch patient name.")
 
 
 def display_reception_tab():
