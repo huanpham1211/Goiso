@@ -319,51 +319,58 @@ def display_blood_draw_completion_tab():
 
 import time
 
-from streamlit_autorefresh import st_autorefresh
-
 def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("DANH SÁCH CHỜ GỌI SỐ")
-    
-    # Automatically refresh the page every 15 seconds
-    count = st_autorefresh(interval=15000, limit=None, key="table_refresh")
 
-    # Fetch the latest data from the NhanMau sheet
-    nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if nhanmau_df.empty:
-        st.write("No pending PIDs.")
-        return
+    # Placeholder for the table
+    placeholder = st.empty()
 
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table", "ketThucLayMau"}
-    if not required_columns.issubset(nhanmau_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
+    # Function to fetch and display the table
+    def fetch_and_display_table():
+        # Fetch the latest data from the NhanMau sheet
+        nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+        if nhanmau_df.empty:
+            placeholder.write("No pending PIDs.")
+            return
 
-    # Normalize null values
-    nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
+        # Ensure required columns exist
+        required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table", "ketThucLayMau"}
+        if not required_columns.issubset(nhanmau_df.columns):
+            placeholder.error(f"The sheet must contain these columns: {required_columns}")
+            return
 
-    # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
-    filtered_df = nhanmau_df[
-        nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
-    ]
+        # Normalize null values
+        nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
-    # Rename columns for display
-    filtered_df = filtered_df.rename(columns={
-        "PID": "Mã",
-        "tenBenhNhan": "Họ tên",
-        "table": "Bàn"
-    })
+        # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
+        filtered_df = nhanmau_df[
+            nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
+        ]
 
-    # Select only relevant columns for display
-    filtered_df = filtered_df[["Mã", "Họ tên", "Bàn"]]
+        # Rename columns for display
+        filtered_df = filtered_df.rename(columns={
+            "PID": "Mã",
+            "tenBenhNhan": "Họ tên",
+            "table": "Bàn"
+        })
 
-    # Display the table
-    if not filtered_df.empty:
-        st.write("### Thứ tự")
-        st.dataframe(filtered_df, use_container_width=True)
-    else:
-        st.write("Chưa có số thứ tự tiếp theo.")
+        # Select only relevant columns for display
+        filtered_df = filtered_df[["Mã", "Họ tên", "Bàn"]]
+
+        # Display the table
+        if not filtered_df.empty:
+            placeholder.write("### Thứ tự")
+            placeholder.dataframe(filtered_df, use_container_width=True)
+        else:
+            placeholder.write("Chưa có số thứ tự tiếp theo.")
+
+    # Initial fetch and display
+    fetch_and_display_table()
+
+    # Add a refresh button
+    if st.button("Refresh Table"):
+        fetch_and_display_table()
 
 
 
