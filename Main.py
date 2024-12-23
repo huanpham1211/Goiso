@@ -320,13 +320,14 @@ def display_blood_draw_completion_tab():
 import time
 
 def display_table_tab():
-    """Displays the Table tab for managing PIDs without thoiGianLayMau."""
+    """Displays the Table tab for managing PIDs."""
     st.title("DANH SÁCH CHỜ GỌI SỐ")
     
     # Create a placeholder for the table content
     placeholder = st.empty()
 
     def fetch_and_display_table():
+        # Fetch the latest data
         nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
 
         if nhanmau_df.empty:
@@ -341,21 +342,21 @@ def display_table_tab():
                 st.error(f"The sheet must contain these columns: {required_columns}")
             return
 
-        # Normalize null values
+        # Normalize null values and drop rows with invalid data
         nhanmau_df = nhanmau_df.replace("", None)
+        nhanmau_df = nhanmau_df.dropna(subset=["PID", "tenBenhNhan", "table"])
 
         # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
         filtered_df = nhanmau_df[
-            nhanmau_df["table"].notna() & 
-            (nhanmau_df["ketThucLayMau"] != "1") & 
-            nhanmau_df["PID"].notna() & 
-            nhanmau_df["tenBenhNhan"].notna()
+            nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
         ]
 
-        # Sort the filtered rows:
-        # 1. Duplicates first (`duplicated=True`)
-        # 2. By `thoiGianNhanMau` in ascending order
+        # Mark duplicates
         filtered_df["is_duplicate"] = filtered_df.duplicated(subset=["PID"], keep=False)
+
+        # Sort the filtered rows:
+        # 1. Duplicates first (`is_duplicate=True`)
+        # 2. By `thoiGianNhanMau` in ascending order
         filtered_df = filtered_df.sort_values(by=["is_duplicate", "thoiGianNhanMau"], ascending=[False, True])
 
         # Display the table content dynamically using columns
@@ -376,10 +377,11 @@ def display_table_tab():
             else:
                 st.write("Chưa có số thứ tự tiếp theo.")
 
-    # Fetch and display the table every 15 seconds
+    # Automatically fetch and display the table every 15 seconds
     while True:
         fetch_and_display_table()
         time.sleep(15)
+
 
 
 
