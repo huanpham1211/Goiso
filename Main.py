@@ -145,11 +145,11 @@ def display_login_page():
 
             # Custom message for "Nhận mẫu" table
             if selected_table == "6":
-                st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in as 'Nhận mẫu'.")
+                st.success(f"Xin chào, {user_info['tenNhanVien']}! Đã đăng nhập vào'Nhận mẫu'.")
             else:
-                st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
+                st.success(f"Xin chào, {user_info['tenNhanVien']}! Đã đăng nhập vào bàn lấy máu số {selected_table}.")
         else:
-            st.error("Invalid username or password.")
+            st.error("Sai thông tin User hoặc Password.")
 
 
 
@@ -158,7 +158,7 @@ def display_login_page():
 def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Register New PID")
-    pid = st.text_input("Enter PID:")
+    pid = st.text_input("Nhập PID:")
 
     if st.button("Register PID"):
         user_info = st.session_state["user_info"]
@@ -171,77 +171,87 @@ def display_registration_tab():
                 RECEPTION_SHEET_RANGE,
                 [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
             )
-            st.success(f"PID {pid} registered successfully with patient name {patient_name}.")
+            st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
         else:
-            st.error("Failed to fetch patient name.")
+            st.error("Không thể lấy thông tin bệnh nhân.")
 
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
-    st.write("### Reception Management")
+    st.title("Reception Management")
 
-    # Fetch the Reception sheet data
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if reception_df.empty:
-        st.write("No PIDs registered yet.")
-        return
+    # Create a placeholder for the content
+    placeholder = st.empty()
+    refresh_interval = 15  # seconds
 
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
+    while True:
+        with placeholder.container():
+            # Fetch the Reception sheet data
+            reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+            if reception_df.empty:
+                st.write("No PIDs registered yet.")
+            else:
+                # Ensure required columns exist
+                required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
+                if not required_columns.issubset(reception_df.columns):
+                    st.error(f"The sheet must contain these columns: {required_columns}")
+                else:
+                    user_name = st.session_state["user_info"]["tenNhanVien"]
+                    selected_table = st.session_state.get("selected_table", None)
+                    reception_df = reception_df.replace("", None)
 
-    user_name = st.session_state["user_info"]["tenNhanVien"]
-    selected_table = st.session_state.get("selected_table", None)
-    reception_df = reception_df.replace("", None)
+                    # Filter rows where the current user or unprocessed rows are shown
+                    filtered_df = reception_df[
+                        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+                        (reception_df["ketThucLayMau"] != "1")
+                    ]
+                    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-    # Filter rows where the current user or unprocessed rows are shown
-    filtered_df = reception_df[
-        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-        (reception_df["ketThucLayMau"] != "1")
-    ]
-    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
+                    # Display only relevant actions without showing the entire dataframe
+                    if not filtered_df.empty:
+                        for _, row in filtered_df.iterrows():
+                            pid = row["PID"]
+                            ten_benh_nhan = row["tenBenhNhan"]
+                            col1, col2, col3 = st.columns([4, 4, 2])
+                            col1.write(f"**PID:** {pid}")
+                            col2.write(f"**Họ tên:** {ten_benh_nhan}")
+                            if col3.button("Receive", key=f"receive_{pid}"):
+                                # Fill in the `NhanMau` sheet with current data
+                                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+                                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-    # Display only relevant actions without showing the entire dataframe
-    if not filtered_df.empty:
-        for _, row in filtered_df.iterrows():
-            pid = row["PID"]
-            ten_benh_nhan = row["tenBenhNhan"]
-            col1, col2, col3 = st.columns([4, 4, 2])
-            col1.write(f"**PID:** {pid}")
-            col2.write(f"**Họ tên:** {ten_benh_nhan}")
-            if col3.button("Receive", key=f"receive_{pid}"):
-                # Fill in the `NhanMau` sheet with current data
-                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+                                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
+                                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
+                                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
 
-                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
-                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
-                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
+                                # Prepare the updated values
+                                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+                                sheets_service.spreadsheets().values().update(
+                                    spreadsheetId=RECEPTION_SHEET_ID,
+                                    range=RECEPTION_SHEET_RANGE,
+                                    valueInputOption="USER_ENTERED",
+                                    body={"values": updated_values}
+                                ).execute()
 
-                # Prepare the updated values
-                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-                sheets_service.spreadsheets().values().update(
-                    spreadsheetId=RECEPTION_SHEET_ID,
-                    range=RECEPTION_SHEET_RANGE,
-                    valueInputOption="USER_ENTERED",
-                    body={"values": updated_values}
-                ).execute()
+                                # Set session variables for Blood Draw Completion
+                                st.session_state["current_pid"] = pid
+                                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
 
-                # Set session variables for Blood Draw Completion
-                st.session_state["current_pid"] = pid
-                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
+                                st.success(f"Bắt đầu lấy máu cho PID {pid}. Please proceed to the Blood Draw Completion tab.")
+                    else:
+                        st.write("Chưa có bệnh nhân.")
 
-                st.success(f"Blood draw started for PID {pid}. Please proceed to the Blood Draw Completion tab.")
-    else:
-        st.write("No patients to mark as received.")
+            # Pause for the refresh interval
+            time.sleep(refresh_interval)
+
+        # Clear the placeholder content before the next refresh
+        placeholder.empty()
 
 
 def display_blood_draw_completion_tab():
     """Handles the Blood Draw Completion tab."""
     if "current_pid" not in st.session_state or "current_ten_benh_nhan" not in st.session_state:
-        st.write("No ongoing blood draw.")
+        st.write("Chưa có bệnh nhân cần lấy máu.")
         return
 
     pid = st.session_state["current_pid"]
@@ -277,7 +287,7 @@ def display_blood_draw_completion_tab():
         del st.session_state["current_ten_benh_nhan"]
 
         # Notify user and redirect back to the Reception tab
-        st.success("Blood draw marked as completed. Please return to the Reception tab.")
+        st.success("Lấy máu hoàn tất. Please return to the Reception tab.")
 
 
 
@@ -285,11 +295,11 @@ import time
 
 def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
-    st.title("Table Overview")
+    st.title("DANH SÁCH CHỜ GỌI SỐ")
     
     # Create a placeholder for the table content
     placeholder = st.empty()
-    refresh_interval = 30  # seconds
+    refresh_interval = 15  # seconds
 
     while True:
         with placeholder.container():
@@ -319,14 +329,14 @@ def display_table_tab():
                     })
 
                     # Select only relevant columns for display
-                    filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
+                    filtered_df = filtered_df[["Mã", "Họ tên", "Bàn"]]
 
                     # Display the table
                     if not filtered_df.empty:
-                        st.write("### Pending PIDs")
+                        st.write("### Thứ tự")
                         st.dataframe(filtered_df, use_container_width=True)
                     else:
-                        st.write("No pending PIDs.")
+                        st.write("Chưa có số thứ tự tiếp theo.")
 
             # Masked sleep logic (users will not see countdown)
             time.sleep(refresh_interval)
