@@ -262,8 +262,9 @@ def display_blood_draw_completion_tab():
         del st.session_state["current_pid"]
         del st.session_state["current_ten_benh_nhan"]
 
-        # Set a flag to switch to Reception tab
-        st.session_state["show_reception_tab"] = True
+        # Navigate back to the Reception tab
+        st.session_state["active_tab"] = "Reception"
+
 
 
 import time
