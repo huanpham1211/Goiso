@@ -338,50 +338,50 @@ else:
     elif selected_tab == "Blood Draw Completion":
         display_blood_draw_completion_tab()
 
-    # Logout Button Handling
-if st.sidebar.button("Logout"):
-    # Get the current time in Vietnam timezone
-    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-    logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-
-    # Fetch the current login log data
-    login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-
-    if not login_log_df.empty:
-        # Replace empty strings with None for processing
-        login_log_df = login_log_df.replace("", None)
-
-        # Find the row corresponding to the current user's login and table
-        user_row_index = login_log_df[
-            (login_log_df["tenNhanVien"] == user_info["tenNhanVien"]) &
-            (login_log_df["table"] == st.session_state["selected_table"])
-        ].index.tolist()
-
-        if user_row_index:
-            # Get the first matching index
-            user_row_index = user_row_index[0]
-
-            # Update the 'thoiGianLogout' column for the identified row
-            login_log_df.at[user_row_index, "thoiGianLogout"] = logout_time
-
-            # Convert the DataFrame to a list of lists for Google Sheets API
-            updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
-
-            # Write the updated data back to Google Sheets
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=LOGIN_LOG_SHEET_ID,
-                range=LOGIN_LOG_SHEET_RANGE,
-                valueInputOption="USER_ENTERED",
-                body={"values": updated_values}
-            ).execute()
-
-            st.success("Logout time logged successfully.")
+        # Logout Button Handling
+    if st.sidebar.button("Logout"):
+        # Get the current time in Vietnam timezone
+        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+    
+        # Fetch the current login log data
+        login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
+    
+        if not login_log_df.empty:
+            # Replace empty strings with None for processing
+            login_log_df = login_log_df.replace("", None)
+    
+            # Find the row corresponding to the current user's login and table
+            user_row_index = login_log_df[
+                (login_log_df["tenNhanVien"] == user_info["tenNhanVien"]) &
+                (login_log_df["table"] == st.session_state["selected_table"])
+            ].index.tolist()
+    
+            if user_row_index:
+                # Get the first matching index
+                user_row_index = user_row_index[0]
+    
+                # Update the 'thoiGianLogout' column for the identified row
+                login_log_df.at[user_row_index, "thoiGianLogout"] = logout_time
+    
+                # Convert the DataFrame to a list of lists for Google Sheets API
+                updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
+    
+                # Write the updated data back to Google Sheets
+                sheets_service.spreadsheets().values().update(
+                    spreadsheetId=LOGIN_LOG_SHEET_ID,
+                    range=LOGIN_LOG_SHEET_RANGE,
+                    valueInputOption="USER_ENTERED",
+                    body={"values": updated_values}
+                ).execute()
+    
+                st.success("Logout time logged successfully.")
+            else:
+                st.warning("No matching login record found for the current user and table.")
         else:
-            st.warning("No matching login record found for the current user and table.")
-    else:
-        st.warning("No login log data available to update.")
-
-    # Clear the session state
-    st.session_state.clear()
+            st.warning("No login log data available to update.")
+    
+        # Clear the session state
+        st.session_state.clear()
 
 
