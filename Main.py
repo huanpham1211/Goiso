@@ -215,9 +215,6 @@ def display_reception_tab():
         st.write("No patients to mark as received.")
 
 
-
-
-
 def display_blood_draw_completion_tab():
     """Handles the Blood Draw Completion tab."""
     if "current_pid" not in st.session_state or "current_ten_benh_nhan" not in st.session_state:
@@ -288,7 +285,8 @@ def display_table_tab():
                     nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
                     # Filter rows where 'thoiGianLayMau' is empty
-                    filtered_df = nhanmau_df[nhanmau_df["table"].notna()]
+                    filtered_df = nhanmau_df[nmhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")]
+
 
                     # Rename columns for display
                     filtered_df = filtered_df.rename(columns={
