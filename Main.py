@@ -302,7 +302,11 @@ else:
 
     # Add logic to handle active tabs, defaulting to the current selected tab
     active_tab = st.session_state.get("active_tab", "Reception")
-    selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception", "Table Overview"], index=["Register New PID", "Reception", "Table Overview"].index(active_tab))
+    tab_options = ["Register New PID", "Reception", "Table Overview"]
+
+    # Safely determine the index for the radio button
+    selected_tab_index = tab_options.index(active_tab) if active_tab in tab_options else 1  # Default to "Reception"
+    selected_tab = st.sidebar.radio("Navigate", tab_options, index=selected_tab_index)
 
     # Update active tab in session state
     st.session_state["active_tab"] = selected_tab
