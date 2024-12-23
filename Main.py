@@ -157,11 +157,13 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
 
+    # Fetch the Reception sheet data
     reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
     if reception_df.empty:
         st.write("No PIDs registered yet.")
         return
 
+    # Ensure required columns exist
     required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
@@ -178,7 +180,7 @@ def display_reception_tab():
     ]
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-    # Display only relevant actions without showing the dataframe
+    # Display only relevant actions without showing the entire dataframe
     if not filtered_df.empty:
         for _, row in filtered_df.iterrows():
             pid = row["PID"]
@@ -193,6 +195,7 @@ def display_reception_tab():
 
                 reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
                 reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
+                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
 
                 # Prepare the updated values
                 updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
@@ -207,9 +210,13 @@ def display_reception_tab():
                 st.session_state["current_pid"] = pid
                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
                 st.session_state["active_tab"] = "Blood Draw Completion"
+
+                # Inform the user and exit the loop
                 st.success(f"Blood draw started for PID {pid}.")
+                return  # Exit to avoid duplicate actions after state update
     else:
         st.write("Chưa có bệnh nhân.")
+
 
 
 
@@ -321,20 +328,27 @@ else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
-        # Check if the user completed a blood draw and redirect to the Reception tab
-    if st.session_state.get("show_reception_tab", False):
-        st.session_state["show_reception_tab"] = False  # Reset the flag
-        display_reception_tab()
-    else:
-        selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception", "Table Overview"])
-        st.session_state["active_tab"] = selected_tab
+      # Dynamically determine the active tab
+    active_tab = st.session_state.get("active_tab", "Reception")
 
-        if selected_tab == "Register New PID":
-            display_registration_tab()
-        elif selected_tab == "Reception":
-            display_reception_tab()
-        elif selected_tab == "Table Overview":
-            display_table_tab()
+    if active_tab == "Register New PID":
+        display_registration_tab()
+    elif active_tab == "Reception":
+        display_reception_tab()
+    elif active_tab == "Table Overview":
+        display_table_tab()
+    elif active_tab == "Blood Draw Completion":
+        display_blood_draw_completion_tab()
+
+    # Sidebar navigation for tabs
+    if active_tab != "Blood Draw Completion":  # Hide navigation while in Blood Draw Completion
+        selected_tab = st.sidebar.radio(
+            "Navigate",
+            ["Register New PID", "Reception", "Table Overview"],
+            index=["Register New PID", "Reception", "Table Overview"].index(active_tab),
+            key="tab_selector"
+        )
+        st.session_state["active_tab"] = selected_tab
 
     # Logout Button Handling
     if st.sidebar.button("Logout"):
