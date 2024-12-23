@@ -199,48 +199,50 @@ def display_reception_tab():
 def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
+    
+    # Create a placeholder to refresh content
+    placeholder = st.empty()
+    
+    while True:
+        # Fetch data from the NhanMau sheet
+        nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+        if nhanmau_df.empty:
+            with placeholder.container():
+                st.write("No pending PIDs.")
+        else:
+            # Ensure required columns exist
+            required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
+            if not required_columns.issubset(nhanmau_df.columns):
+                with placeholder.container():
+                    st.error(f"The sheet must contain these columns: {required_columns}")
+                break
+            
+            # Normalize null values
+            nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
-    # Fetch data from the NhanMau sheet
-    nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if nhanmau_df.empty:
-        st.write("No data available.")
-        time.sleep(30)  # Pause for 30 seconds before re-fetching
-        display_table_tab()
-        return
+            # Filter rows where 'thoiGianLayMau' is empty
+            filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
 
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
-    if not required_columns.issubset(nhanmau_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
+            # Rename columns for display
+            filtered_df = filtered_df.rename(columns={
+                "PID": "PID",
+                "tenBenhNhan": "Họ tên",
+                "table": "Bàn"
+            })
 
-    # Normalize null values
-    nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
+            # Select only relevant columns for display
+            filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
 
-    # Filter rows where 'thoiGianLayMau' is empty
-    filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
-
-    # Rename columns for display
-    filtered_df = filtered_df.rename(columns={
-        "PID": "PID",
-        "tenBenhNhan": "Họ tên",
-        "table": "Bàn"
-    })
-
-    # Select only relevant columns for display
-    filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
-
-    # Display the table
-    if not filtered_df.empty:
-        st.write("### Pending PIDs")
-        st.dataframe(filtered_df, use_container_width=True)
-    else:
-        st.write("No pending PIDs.")
-
-    # Simulate auto-refresh by re-calling the function after 30 seconds
-    time.sleep(30)
-    display_table_tab()
-
+            # Display the table
+            with placeholder.container():
+                if not filtered_df.empty:
+                    st.write("### Pending PIDs")
+                    st.dataframe(filtered_df, use_container_width=True)
+                else:
+                    st.write("No pending PIDs.")
+        
+        # Pause for 30 seconds before refreshing
+        time.sleep(30)
         
 # Main App Logic with an additional tab
 if not st.session_state.get('is_logged_in', False):
