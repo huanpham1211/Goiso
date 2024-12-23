@@ -180,74 +180,66 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.title("Lấy máu")
 
-    # Create a placeholder for the content
-    placeholder = st.empty()
+    # Fetch the Reception sheet data
+    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    if reception_df.empty:
+        st.write("No PIDs registered yet.")
+        return
 
-    # Function to fetch and display the data
-    def refresh_content():
-        # Fetch the Reception sheet data
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-        if reception_df.empty:
-            placeholder.write("No PIDs registered yet.")
-        else:
-            # Ensure required columns exist
-            required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
-            if not required_columns.issubset(reception_df.columns):
-                placeholder.error(f"The sheet must contain these columns: {required_columns}")
-            else:
-                user_name = st.session_state["user_info"]["tenNhanVien"]
-                selected_table = st.session_state.get("selected_table", None)
-                reception_df = reception_df.replace("", None)
+    # Ensure required columns exist
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
+    if not required_columns.issubset(reception_df.columns):
+        st.error(f"The sheet must contain these columns: {required_columns}")
+        return
 
-                # Filter rows where the current user or unprocessed rows are shown
-                filtered_df = reception_df[
-                    ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-                    (reception_df["ketThucLayMau"] != "1")
-                ]
-                filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
+    user_name = st.session_state["user_info"]["tenNhanVien"]
+    selected_table = st.session_state.get("selected_table", None)
+    reception_df = reception_df.replace("", None)
 
-                # Update the placeholder content
-                with placeholder.container():
-                    if not filtered_df.empty:
-                        for index, row in filtered_df.iterrows():
-                            pid = row["PID"]
-                            ten_benh_nhan = row["tenBenhNhan"]
-                            col1, col2, col3 = st.columns([4, 4, 2])
-                            col1.write(f"**PID:** {pid}")
-                            col2.write(f"**Họ tên:** {ten_benh_nhan}")
-                            # Use a unique key for each button
-                            if col3.button("Receive", key=f"receive_{pid}_{index}"):
-                                # Fill in the `NhanMau` sheet with current data
-                                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-                                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+    # Filter rows where the current user or unprocessed rows are shown
+    filtered_df = reception_df[
+        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+        (reception_df["ketThucLayMau"] != "1")
+    ]
+    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-                                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
-                                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
-                                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
+    # Display only relevant actions without showing the entire dataframe
+    if not filtered_df.empty:
+        for idx, row in filtered_df.iterrows():
+            pid = row["PID"]
+            ten_benh_nhan = row["tenBenhNhan"]
+            col1, col2, col3 = st.columns([4, 4, 2])
+            col1.write(f"**PID:** {pid}")
+            col2.write(f"**Họ tên:** {ten_benh_nhan}")
+            
+            # Generate a unique key for each button by including `pid` and `idx`
+            button_key = f"receive_{pid}_{idx}"
+            if col3.button("Receive", key=button_key):
+                # Fill in the `NhanMau` sheet with current data
+                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
 
-                                # Prepare the updated values
-                                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-                                sheets_service.spreadsheets().values().update(
-                                    spreadsheetId=RECEPTION_SHEET_ID,
-                                    range=RECEPTION_SHEET_RANGE,
-                                    valueInputOption="USER_ENTERED",
-                                    body={"values": updated_values}
-                                ).execute()
+                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
+                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
+                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
 
-                                # Set session variables for Blood Draw Completion
-                                st.session_state["current_pid"] = pid
-                                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
+                # Prepare the updated values
+                updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+                sheets_service.spreadsheets().values().update(
+                    spreadsheetId=RECEPTION_SHEET_ID,
+                    range=RECEPTION_SHEET_RANGE,
+                    valueInputOption="USER_ENTERED",
+                    body={"values": updated_values}
+                ).execute()
 
-                                st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
-                    else:
-                        placeholder.write("Chưa có bệnh nhân.")
+                # Set session variables for Blood Draw Completion
+                st.session_state["current_pid"] = pid
+                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
 
-    # Initial render
-    refresh_content()
+                st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
+    else:
+        st.write("Chưa có bệnh nhân.")
 
-    # Add a refresh button
-    if st.button("Refresh"):
-        refresh_content()
 
 
 
