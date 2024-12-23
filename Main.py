@@ -10,9 +10,10 @@ import requests
 # Google Sheets document IDs and ranges
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
 RECEPTION_SHEET_RANGE = 'Sheet1'
-
 NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
 NHANVIEN_SHEET_RANGE = 'Sheet1'
+LOGIN_LOG_SHEET_ID = '1u6M5pQyeDg44QXynb79YP9Mf1V6JlIqqthKrVx-DAfA'
+LOGIN_LOG_SHEET_RANGE = 'Sheet1'
 
 # Load Google credentials from Streamlit Secrets
 google_credentials = st.secrets["GOOGLE_CREDENTIALS"]
@@ -57,45 +58,52 @@ def append_to_sheet(sheet_id, range_name, values):
     ).execute()
 
 
-def fetch_patient_name(pid):
-    """Fetches the patient name from the API."""
-    url = f"https://api.bvhungvuong.vn/api/dangkykham/?ip=&idbv=&id=&mabn={pid}&ngay="
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            if 'data' in data and len(data['data']) > 0:
-                patient_info = data['data'][0]
-                hoten = patient_info.get("hoten")
-                if hoten:
-                    return hoten.strip()
-                else:
-                    st.error("The response does not contain a valid 'hoten' field.")
-                    return None
-            else:
-                st.error("No patient data found in the response.")
-                return None
+def display_login_page():
+    """Displays the login page."""
+    st.title("Login")
+
+    # Fetch login log data
+    login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
+    all_tables = [str(i) for i in range(1, 6)]
+
+    # Determine available tables
+    if not login_log_df.empty:
+        active_tables = login_log_df[login_log_df['thoiGianLogout'] == ""]["Table"].tolist()
+        available_tables = [table for table in all_tables if table not in active_tables]
+    else:
+        available_tables = all_tables  # All tables are available if no log exists
+
+    # Table selection dropdown
+    selected_table = st.selectbox("Select a table to log in:", available_tables)
+
+    # User credentials input
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
+        user = nhanvien_df[(nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)]
+
+        if not user.empty:
+            user_info = user.iloc[0].to_dict()
+            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+            login_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Save login details to the session
+            st.session_state['is_logged_in'] = True
+            st.session_state['user_info'] = user_info
+            st.session_state['selected_table'] = selected_table
+
+            # Append login information to the login log sheet
+            append_to_sheet(
+                LOGIN_LOG_SHEET_ID,
+                LOGIN_LOG_SHEET_RANGE,
+                [[user_info['tenNhanVien'], selected_table, login_time, ""]]
+            )
+
+            st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
         else:
-            st.error(f"Failed to fetch patient data. HTTP Status: {response.status_code}")
-            return None
-    except requests.RequestException as e:
-        st.error(f"Error fetching data from API: {e}")
-        return None
-
-
-def register_pid_with_name(pid, ten_nhan_vien):
-    """Registers a new PID and fetches the patient name."""
-    patient_name = fetch_patient_name(pid)
-    if not patient_name:
-        st.error("Failed to fetch patient name. Registration aborted.")
-        return False
-
-    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-    timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-
-    data = [[pid, patient_name, timestamp, ten_nhan_vien, "", ""]]
-    append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
-    return True
+            st.error("Invalid username or password.")
 
 
 def display_registration_tab():
@@ -107,41 +115,18 @@ def display_registration_tab():
     
     if st.button("Register PID"):
         if pid:
-            success = register_pid_with_name(pid, user_info.get("tenNhanVien", "Unknown"))
-            if success:
-                st.success(f"PID {pid} registered successfully.")
-            else:
-                st.error("Failed to register the PID.")
+            # Fetch patient name (dummy implementation for now)
+            patient_name = f"Patient {pid}"  # Replace with API call
+            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+            timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+            append_to_sheet(
+                RECEPTION_SHEET_ID,
+                RECEPTION_SHEET_RANGE,
+                [[pid, patient_name, timestamp, user_info['tenNhanVien'], "", ""]]
+            )
+            st.success(f"PID {pid} registered successfully.")
         else:
             st.error("Please enter a PID.")
-
-    reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if reception_df.empty:
-        st.write("No PIDs registered yet.")
-        return
-
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
-
-    reception_df = reception_df.replace("", None)
-    filtered_df = reception_df[reception_df["thoiGianLayMau"].isna()]
-    filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
-    filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
-
-    filtered_df = filtered_df.rename(columns={
-        "PID": "PID",
-        "tenBenhNhan": "Họ tên",
-        "thoiGianNhanMau": "Thời gian nhận mẫu",
-    })
-
-    filtered_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu"]]
-    if not filtered_df.empty:
-        st.write("### Registered Patients")
-        st.dataframe(filtered_df, use_container_width=True)
-    else:
-        st.write("No patients pending collection.")
 
 
 def display_reception_tab():
@@ -158,69 +143,43 @@ def display_reception_tab():
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
 
-    reception_df = reception_df.replace("", None)
     user_name = st.session_state["user_info"]["tenNhanVien"]
+    reception_df = reception_df.replace("", None)
 
     filtered_df = reception_df[
         reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == user_name)
     ]
-
-    filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-    filtered_df = filtered_df.rename(columns={
-        "PID": "PID",
-        "tenBenhNhan": "Họ tên",
-        "thoiGianNhanMau": "Thời gian nhận mẫu",
-        "thoiGianLayMau": "Thời gian lấy máu",
-        "nguoiLayMau": "Người lấy máu",
-    })
+    st.write("### Patients for Current Receptionist")
+    st.dataframe(filtered_df, use_container_width=True)
 
-    display_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu"]]
-    if not display_df.empty:
-        st.write("### Patients for Current Receptionist")
-        st.dataframe(display_df, use_container_width=True)
-    else:
-        st.write("No patients pending or assigned to you.")
-
-    selectable_pids = filtered_df[filtered_df["Thời gian lấy máu"].isna()]["PID"].tolist()
-
-    if selectable_pids:
-        selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
+    if not filtered_df.empty:
+        selected_pid = st.selectbox("Select a PID to mark as received:", filtered_df["PID"].tolist())
         if st.button("Mark as Received"):
-            now = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-            reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = now
+            reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = datetime.now(
+                pytz.timezone("Asia/Ho_Chi_Minh")
+            ).strftime("%Y-%m-%d %H:%M:%S")
             reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
 
             updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-            body = {"values": updated_values}
             sheets_service.spreadsheets().values().update(
                 spreadsheetId=RECEPTION_SHEET_ID,
                 range=RECEPTION_SHEET_RANGE,
                 valueInputOption="USER_ENTERED",
-                body=body
+                body={"values": updated_values}
             ).execute()
-
             st.success(f"PID {selected_pid} marked as received.")
+    else:
+        st.write("No patients to mark as received.")
 
 
+# Main App Logic
 if not st.session_state.get('is_logged_in', False):
-    st.title("Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
-        user = nhanvien_df[(nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)]
-        if not user.empty:
-            user_info = user.iloc[0].to_dict()
-            st.session_state['is_logged_in'] = True
-            st.session_state['user_info'] = user_info
-            st.success(f"Welcome, {user_info['tenNhanVien']}!")
-        else:
-            st.error("Invalid username or password.")
+    display_login_page()
 else:
     user_info = st.session_state['user_info']
-    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']}")
+    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
     selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception"])
     if selected_tab == "Register New PID":
