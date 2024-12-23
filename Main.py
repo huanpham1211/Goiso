@@ -157,10 +157,10 @@ def display_login_page():
 
 def display_registration_tab():
     """Displays the Registration tab."""
-    st.title("Register New PID")
+    st.title("Đăng ký PID mới")
     pid = st.text_input("Nhập PID:")
 
-    if st.button("Register PID"):
+    if st.button("Đăng ký"):
         user_info = st.session_state["user_info"]
         patient_name = fetch_patient_name(pid)
         if patient_name:
@@ -178,7 +178,7 @@ def display_registration_tab():
 
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
-    st.title("Reception Management")
+    st.title("Lấy máu")
 
     # Create a placeholder for the content
     placeholder = st.empty()
@@ -237,7 +237,7 @@ def display_reception_tab():
                                 st.session_state["current_pid"] = pid
                                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
 
-                                st.success(f"Bắt đầu lấy máu cho PID {pid}. Please proceed to the Blood Draw Completion tab.")
+                                st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
                     else:
                         st.write("Chưa có bệnh nhân.")
 
@@ -287,7 +287,7 @@ def display_blood_draw_completion_tab():
         del st.session_state["current_ten_benh_nhan"]
 
         # Notify user and redirect back to the Reception tab
-        st.success("Lấy máu hoàn tất. Please return to the Reception tab.")
+        st.success("Lấy máu hoàn tất. Quay lại thẻ 'Gọi bệnh nhân'.")
 
 
 
@@ -354,24 +354,24 @@ if not st.session_state.get('is_logged_in', False):
 else:
     user_info = st.session_state['user_info']
     selected_table = st.session_state['selected_table']
-    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {selected_table})")
+    st.sidebar.header(f"{user_info['tenNhanVien']} (Bàn {selected_table})")
 
     # Restrict tabs based on table type
     if selected_table == "6":  # "Nhận mẫu"
-        tabs = ["Register New PID", "Table Overview"]
+        tabs = ["Đăng ký mới PID", "Bảng gọi số"]
     else:  # Tables 1–5
-        tabs = ["Reception", "Blood Draw Completion"]
+        tabs = ["Gọi bệnh nhân", "Hoàn tất lấy máu"]
 
     selected_tab = st.sidebar.radio("Navigate", tabs)
 
     # Render the appropriate tab
-    if selected_tab == "Register New PID" and selected_table == "6":  # Only for table 6
+    if selected_tab == "Đăng ký mới PID" and selected_table == "6":  # Only for table 6
         display_registration_tab()
-    elif selected_tab == "Table Overview" and selected_table == "6":  # Only for table 6
+    elif selected_tab == "Bảng gọi số" and selected_table == "6":  # Only for table 6
         display_table_tab()
-    elif selected_tab == "Reception" and selected_table != "6":  # Only for tables 1–5
+    elif selected_tab == "Gọi bệnh nhân" and selected_table != "6":  # Only for tables 1–5
         display_reception_tab()
-    elif selected_tab == "Blood Draw Completion" and selected_table != "6":  # Only for tables 1–5
+    elif selected_tab == "Hoàn tất lấy máu" and selected_table != "6":  # Only for tables 1–5
         display_blood_draw_completion_tab()
 
     # Logout Button Handling
