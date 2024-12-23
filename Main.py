@@ -1,11 +1,79 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import json
+import pytz
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+# Google Sheets document IDs and ranges
+RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
+RECEPTION_SHEET_RANGE = 'Sheet1'
+
+LOGIN_LOG_SHEET_ID = '1u6M5pQyeDg44QXynb79YP9Mf1V6JlIqqthKrVx-DAfA'
+LOGIN_LOG_SHEET_RANGE = 'Sheet1'
+
+NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
+NHANVIEN_SHEET_RANGE = 'Sheet1'
+
+# Load Google credentials from Streamlit Secrets
+google_credentials = st.secrets["GOOGLE_CREDENTIALS"]
+credentials_info = json.loads(google_credentials)
+
+# Authenticate using the service account credentials
+credentials = service_account.Credentials.from_service_account_info(
+    credentials_info,
+    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+
+# Initialize the Google Sheets API client
+sheets_service = build('sheets', 'v4', credentials=credentials)
+
+
+def fetch_sheet_data(sheet_id, range_name):
+    """Fetches data from Google Sheets and returns it as a DataFrame."""
+    result = sheets_service.spreadsheets().values().get(
+        spreadsheetId=sheet_id,
+        range=range_name
+    ).execute()
+    values = result.get('values', [])
+    
+    if not values:
+        return pd.DataFrame()  # Return an empty DataFrame if no data is found
+    
+    headers = values[0]
+    rows = values[1:]
+    normalized_rows = [row + [''] * (len(headers) - len(row)) for row in rows]
+    return pd.DataFrame(normalized_rows, columns=headers)
+
+
+def append_to_sheet(sheet_id, range_name, values):
+    """Appends data to a Google Sheet."""
+    body = {'values': values}
+    sheets_service.spreadsheets().values().append(
+        spreadsheetId=sheet_id,
+        range=range_name,
+        valueInputOption="USER_ENTERED",
+        insertDataOption="INSERT_ROWS",
+        body=body
+    ).execute()
+
+
 def log_user_activity(ten_nhan_vien, table, login_time=None, logout_time=None):
     """Logs user activity (login or logout) in a Google Sheet."""
     data = [[ten_nhan_vien, table, login_time, logout_time]]
-    append_to_sheet(
-        '1u6M5pQyeDg44QXynb79YP9Mf1V6JlIqqthKrVx-DAfA',  # Login log sheet ID
-        'Sheet1',
-        data
-    )
+    append_to_sheet(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE, data)
+
+
+def is_table_available(table):
+    """Checks if the table is already assigned to another user."""
+    login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
+    if login_log_df.empty:
+        return True  # No assignments yet
+
+    active_assignments = login_log_df[(login_log_df["Table"] == str(table)) & login_log_df["thoiGianLogout"].isna()]
+    return active_assignments.empty  # Table is available if no active assignments
+
 
 def display_login_page():
     """Displays the login page."""
@@ -13,8 +81,14 @@ def display_login_page():
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    # Dropdown for table selection (1 to 5)
-    table = st.selectbox("Select Table", options=[1, 2, 3, 4, 5])
+    # Fetch all available tables
+    available_tables = [table for table in range(1, 6) if is_table_available(table)]
+    if not available_tables:
+        st.error("All tables are currently assigned. Please wait for availability.")
+        return
+
+    # Dropdown for table selection (only available tables)
+    table = st.selectbox("Select Table", options=available_tables)
 
     if st.button("Login"):
         nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
@@ -34,6 +108,7 @@ def display_login_page():
         else:
             st.error("Invalid username or password.")
 
+
 def display_logout():
     """Logs out the user and records the logout time."""
     user_info = st.session_state['user_info']
@@ -47,26 +122,39 @@ def display_logout():
     st.session_state.clear()
     st.success("You have been logged out.")
 
+
+def display_registration_tab():
+    """Displays the New Registration tab."""
+    st.title("Register New PID")
+    
+    pid = st.text_input("Enter PID:")
+    user_info = st.session_state.get("user_info", {})
+    table = st.session_state.get("table", None)
+    
+    if st.button("Register PID"):
+        if pid:
+            # Get the current timestamp
+            vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+            timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Data to append
+            data = [[pid, "Patient Name", timestamp, user_info.get("tenNhanVien", ""), "", "", table]]
+            append_to_sheet(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE, data)
+
+            st.success(f"PID {pid} registered successfully.")
+        else:
+            st.error("Please enter a PID.")
+
+
 def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.write("### Reception Management")
 
-    # Fetch data from the sheet
     reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
     if reception_df.empty:
         st.write("No PIDs registered yet.")
         return
 
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table"}
-    if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
-
-    # Normalize null values
-    reception_df = reception_df.replace("", None)  # Convert blank strings to None
-
-    # Current logged-in user's name
     user_name = st.session_state["user_info"]["tenNhanVien"]
 
     # Filter rows where 'thoiGianLayMau' is empty or 'nguoiLayMau' matches the logged-in user
@@ -74,11 +162,10 @@ def display_reception_tab():
         reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == user_name)
     ]
 
-    # Sort by 'thoiGianNhanMau' in ascending order
     filtered_df["thoiGianNhanMau"] = pd.to_datetime(filtered_df["thoiGianNhanMau"], errors="coerce")
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-    # Rename columns for display
+    # Rename columns
     filtered_df = filtered_df.rename(columns={
         "PID": "PID",
         "tenBenhNhan": "Họ tên",
@@ -88,41 +175,19 @@ def display_reception_tab():
         "table": "Table",
     })
 
-    # Select only relevant columns for display
-    display_df = filtered_df[["PID", "Họ tên", "Thời gian nhận mẫu", "Thời gian lấy máu", "Người lấy máu", "Table"]]
-
-    # Display the table
-    if not display_df.empty:
-        st.write("### Patients for Current Receptionist")
-        st.dataframe(display_df, use_container_width=True)
-    else:
-        st.write("No patients pending or assigned to you.")
-
-    # Filter for PID selection (only show rows with empty 'Thời gian lấy máu')
-    selectable_pids = filtered_df[filtered_df["Thời gian lấy máu"].isna()]["PID"].tolist()
+    st.dataframe(filtered_df, use_container_width=True)
 
     # Mark as Received functionality
+    selectable_pids = filtered_df[filtered_df["Thời gian lấy máu"].isna()]["PID"].tolist()
     if selectable_pids:
         selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
         if st.button("Mark as Received"):
-            # Update thoiGianLayMau and nguoiLayMau for the selected PID
             now = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-            table = st.session_state['table']
-            reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = now
-            reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
-            reception_df.loc[reception_df["PID"] == selected_pid, "table"] = table
+            filtered_df.loc[filtered_df["PID"] == selected_pid, "Thời gian lấy máu"] = now
+            filtered_df.loc[filtered_df["PID"] == selected_pid, "Người lấy máu"] = user_name
 
-            # Push updated data back to Google Sheets
-            updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-            body = {"values": updated_values}
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=RECEPTION_SHEET_ID,
-                range=RECEPTION_SHEET_RANGE,
-                valueInputOption="USER_ENTERED",
-                body=body
-            ).execute()
+            st.success(f"PID {selected_pid} marked as received.")
 
-            st.success(f"PID {selected_pid} marked as received with Table {table}.")
 
 def main():
     if not st.session_state.get('is_logged_in', False):
@@ -131,7 +196,6 @@ def main():
         user_info = st.session_state['user_info']
         st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']}")
 
-        # Sidebar Navigation
         selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception"])
 
         if selected_tab == "Register New PID":
@@ -139,8 +203,8 @@ def main():
         elif selected_tab == "Reception":
             display_reception_tab()
 
-        # Logout Button
         if st.sidebar.button("Logout"):
             display_logout()
+
 
 main()
