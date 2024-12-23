@@ -78,7 +78,7 @@ def display_login_page():
     # Fetch login log data
     login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
     restricted_tables = [str(i) for i in range(1, 6)]  # Tables 1–5 are restricted
-    available_tables = ["6"]  # Table 6 ("Nhận mẫu") is always available
+    available_tables = ["Nhận mẫu"]  # Table 6 ("Nhận mẫu") is always available
 
     # Determine availability for tables 1–5 based on active logins
     if not login_log_df.empty:
@@ -89,8 +89,17 @@ def display_login_page():
     else:
         available_tables.extend(restricted_tables)  # If no log exists, all tables 1–5 are available
 
+    # Mapping for display
+    table_display_mapping = {"Nhận mẫu": "6"}
+    for table in restricted_tables:
+        table_display_mapping[table] = table
+
+    # Reverse mapping for processing
+    display_to_internal_mapping = {v: k for k, v in table_display_mapping.items()}
+
     # Table selection dropdown
-    selected_table = st.selectbox("Select a table to log in:", available_tables)
+    selected_display_table = st.selectbox("Select a table to log in:", list(table_display_mapping.keys()))
+    selected_table = table_display_mapping[selected_display_table]
 
     # User credentials input
     username = st.text_input("Username")
