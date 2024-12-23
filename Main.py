@@ -201,52 +201,54 @@ def display_reception_tab():
 def display_table_tab():
     """Displays the Table tab for managing PIDs without thoiGianLayMau."""
     st.title("Table Overview")
-
-    # Fetch data from the NhanMau sheet
-    nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    if nhanmau_df.empty:
-        st.write("No pending PIDs.")
-        return
-
-    # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
-    if not required_columns.issubset(nhanmau_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
-        return
-
-    # Normalize null values
-    nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
-
-    # Filter rows where 'thoiGianLayMau' is empty
-    filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
-
-    # Rename columns for display
-    filtered_df = filtered_df.rename(columns={
-        "PID": "PID",
-        "tenBenhNhan": "Họ tên",
-        "table": "Bàn"
-    })
-
-    # Select only relevant columns for display
-    filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
-
-    # Display the table
-    if not filtered_df.empty:
-        st.write("### Pending PIDs")
-        st.dataframe(filtered_df, use_container_width=True)
-    else:
-        st.write("No pending PIDs.")
-
-    # Auto-refresh mechanism using query parameters
+    
+    # Create a placeholder for the table content
+    placeholder = st.empty()
     refresh_interval = 30  # seconds
-    countdown_placeholder = st.empty()
-    for i in range(refresh_interval, 0, -1):
-        countdown_placeholder.write(f"Refreshing in {i} seconds...")
-        time.sleep(1)
 
-    # Trigger a refresh by setting query parameters
-    st.set_query_params(refresh="true")
+    # Fetch and display data inside a loop
+    while True:
+        with placeholder.container():
+            # Fetch data from the NhanMau sheet
+            nhanmau_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+            if nhanmau_df.empty:
+                st.write("No pending PIDs.")
+            else:
+                # Ensure required columns exist
+                required_columns = {"PID", "tenBenhNhan", "thoiGianLayMau", "table"}
+                if not required_columns.issubset(nhanmau_df.columns):
+                    st.error(f"The sheet must contain these columns: {required_columns}")
+                else:
+                    # Normalize null values
+                    nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
+                    # Filter rows where 'thoiGianLayMau' is empty
+                    filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
+
+                    # Rename columns for display
+                    filtered_df = filtered_df.rename(columns={
+                        "PID": "PID",
+                        "tenBenhNhan": "Họ tên",
+                        "table": "Bàn"
+                    })
+
+                    # Select only relevant columns for display
+                    filtered_df = filtered_df[["PID", "Họ tên", "Bàn"]]
+
+                    # Display the table
+                    if not filtered_df.empty:
+                        st.write("### Pending PIDs")
+                        st.dataframe(filtered_df, use_container_width=True)
+                    else:
+                        st.write("No pending PIDs.")
+
+            # Countdown timer
+            for i in range(refresh_interval, 0, -1):
+                st.write(f"Refreshing in {i} seconds...", key=f"countdown_{i}")
+                time.sleep(1)
+
+        # Clear all output within the placeholder before the next refresh
+        placeholder.empty()
 
 
 
