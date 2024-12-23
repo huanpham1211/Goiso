@@ -168,7 +168,7 @@ def display_reception_tab():
         return
 
     user_name = st.session_state["user_info"]["tenNhanVien"]
-    selected_table = st.session_state["selected_table"]
+    selected_table = st.session_state.get("selected_table", None)
     reception_df = reception_df.replace("", None)
 
     # Filter rows where the current user or unprocessed rows are shown
@@ -182,29 +182,54 @@ def display_reception_tab():
 
     if not filtered_df.empty:
         # Filter selectable PIDs for marking as received
-        selectable_pids = filtered_df[filtered_df["thoiGianLayMau"].isna()]["PID"].tolist()
-        selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
+        for _, row in filtered_df.iterrows():
+            pid = row["PID"]
+            ten_benh_nhan = row["tenBenhNhan"]
+            col1, col2, col3 = st.columns([4, 4, 2])
+            col1.write(f"**PID:** {pid}")
+            col2.write(f"**Họ tên:** {ten_benh_nhan}")
+            if col3.button("Receive", key=f"receive_{pid}"):
+                st.session_state["current_pid"] = pid
+                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
+                st.session_state["active_tab"] = "Blood Draw Completion"
 
-        if st.button("Mark as Received"):
-            # Update only the selected row with new data
-            reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = datetime.now(
-                pytz.timezone("Asia/Ho_Chi_Minh")
-            ).strftime("%Y-%m-%d %H:%M:%S")
-            reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
-            reception_df.loc[reception_df["PID"] == selected_pid, "table"] = selected_table
-
-            # Prepare the updated values
-            updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=RECEPTION_SHEET_ID,
-                range=RECEPTION_SHEET_RANGE,
-                valueInputOption="USER_ENTERED",
-                body={"values": updated_values}
-            ).execute()
-            st.success(f"PID {selected_pid} marked as received.")
     else:
         st.write("No patients to mark as received.")
 
+
+def display_blood_draw_completion_tab():
+    """Displays the blood draw completion page."""
+    if "current_pid" not in st.session_state or "current_ten_benh_nhan" not in st.session_state:
+        st.write("No ongoing blood draw.")
+        return
+
+    pid = st.session_state["current_pid"]
+    ten_benh_nhan = st.session_state["current_ten_benh_nhan"]
+
+    st.write("### Blood Draw Completion")
+    st.write(f"**PID:** {pid}")
+    st.write(f"**Họ tên:** {ten_benh_nhan}")
+
+    if st.button("Blood draw completed"):
+        # Fetch the sheet data
+        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+
+        # Update the column `ketThucLayMau` for the selected PID
+        reception_df.loc[reception_df["PID"] == pid, "ketThucLayMau"] = "1"
+
+        # Prepare the updated values
+        updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=RECEPTION_SHEET_ID,
+            range=RECEPTION_SHEET_RANGE,
+            valueInputOption="USER_ENTERED",
+            body={"values": updated_values}
+        ).execute()
+
+        # Clear session state for current PID and redirect to Reception
+        del st.session_state["current_pid"]
+        del st.session_state["current_ten_benh_nhan"]
+        st.session_state["active_tab"] = "Reception"
 
 import time
 
