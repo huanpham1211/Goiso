@@ -162,7 +162,7 @@ def display_reception_tab():
         st.write("No PIDs registered yet.")
         return
 
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
@@ -174,14 +174,12 @@ def display_reception_tab():
     # Filter rows where the current user or unprocessed rows are shown
     filtered_df = reception_df[
         ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-        (reception_df["ketThucLayMau"] != "1")]
+        (reception_df["ketThucLayMau"] != "1")
+    ]
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
-    st.write("### Patients for Current Receptionist")
-    st.dataframe(filtered_df, use_container_width=True)
-
+    # Display only relevant actions without showing the dataframe
     if not filtered_df.empty:
-        # Filter selectable PIDs for marking as received
         for _, row in filtered_df.iterrows():
             pid = row["PID"]
             ten_benh_nhan = row["tenBenhNhan"]
@@ -192,9 +190,9 @@ def display_reception_tab():
                 st.session_state["current_pid"] = pid
                 st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
                 st.session_state["active_tab"] = "Blood Draw Completion"
-
     else:
-        st.write("No patients to mark as received.")
+        st.write("Chưa có bệnh nhân.")
+
 
 
 def display_blood_draw_completion_tab():
