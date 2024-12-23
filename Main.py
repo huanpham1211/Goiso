@@ -182,7 +182,7 @@ def display_reception_tab():
 
     if not filtered_df.empty:
         # Filter selectable PIDs for marking as received
-        selectable_pids = filtered_df[filtered_df["table"].notna()]["PID"].tolist()
+        selectable_pids = filtered_df[filtered_df["thoiGianLayMau"].isna()]["PID"].tolist()
         selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
 
         if st.button("Mark as Received"):
@@ -233,7 +233,7 @@ def display_table_tab():
                     nhanmau_df = nhanmau_df.replace("", None)  # Convert blank strings to None
 
                     # Filter rows where 'thoiGianLayMau' is empty
-                    filtered_df = nhanmau_df[nhanmau_df["thoiGianLayMau"].isna()]
+                    filtered_df = nhanmau_df[nhanmau_df["table"].notna()]
 
                     # Rename columns for display
                     filtered_df = filtered_df.rename(columns={
