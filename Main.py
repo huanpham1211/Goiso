@@ -10,8 +10,6 @@ import requests
 # Google Sheets document IDs and ranges
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
 RECEPTION_SHEET_RANGE = 'Sheet1'
-NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
-NHANVIEN_SHEET_RANGE = 'Sheet1'
 LOGIN_LOG_SHEET_ID = '1u6M5pQyeDg44QXynb79YP9Mf1V6JlIqqthKrVx-DAfA'
 LOGIN_LOG_SHEET_RANGE = 'Sheet1'
 
@@ -68,7 +66,7 @@ def display_login_page():
 
     # Determine available tables
     if not login_log_df.empty:
-        active_tables = login_log_df[login_log_df['thoiGianLogout'] == ""]["Table"].tolist()
+        active_tables = login_log_df[login_log_df['thoiGianLogout'] == ""]["table"].tolist()
         available_tables = [table for table in all_tables if table not in active_tables]
     else:
         available_tables = all_tables  # All tables are available if no log exists
@@ -81,7 +79,7 @@ def display_login_page():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
+        nhanvien_df = fetch_sheet_data(RECEPTION_SHEET_ID, 'Sheet1')
         user = nhanvien_df[(nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)]
 
         if not user.empty:
@@ -98,7 +96,7 @@ def display_login_page():
             append_to_sheet(
                 LOGIN_LOG_SHEET_ID,
                 LOGIN_LOG_SHEET_RANGE,
-                [[user_info['tenNhanVien'], selected_table, login_time, ""]]
+                [[selected_table, user_info['tenNhanVien'], login_time, ""]]
             )
 
             st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
@@ -115,14 +113,14 @@ def display_registration_tab():
     
     if st.button("Register PID"):
         if pid:
-            # Fetch patient name (dummy implementation for now)
-            patient_name = f"Patient {pid}"  # Replace with API call
+            # Fetch patient name
+            patient_name = f"Patient {pid}"  # Replace with actual API call
             vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
             timestamp = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
             append_to_sheet(
                 RECEPTION_SHEET_ID,
                 RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info['tenNhanVien'], "", ""]]
+                [[pid, patient_name, timestamp, user_info['tenNhanVien'], "", "", st.session_state['selected_table']]]
             )
             st.success(f"PID {pid} registered successfully.")
         else:
@@ -138,7 +136,7 @@ def display_reception_tab():
         st.write("No PIDs registered yet.")
         return
 
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The sheet must contain these columns: {required_columns}")
         return
@@ -147,7 +145,7 @@ def display_reception_tab():
     reception_df = reception_df.replace("", None)
 
     filtered_df = reception_df[
-        reception_df["thoiGianLayMau"].isna() | (reception_df["nguoiLayMau"] == user_name)
+        (reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)
     ]
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
@@ -155,12 +153,14 @@ def display_reception_tab():
     st.dataframe(filtered_df, use_container_width=True)
 
     if not filtered_df.empty:
-        selected_pid = st.selectbox("Select a PID to mark as received:", filtered_df["PID"].tolist())
+        selectable_pids = filtered_df[filtered_df["thoiGianLayMau"].isna()]["PID"].tolist()
+        selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
         if st.button("Mark as Received"):
             reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = datetime.now(
                 pytz.timezone("Asia/Ho_Chi_Minh")
             ).strftime("%Y-%m-%d %H:%M:%S")
             reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
+            reception_df.loc[reception_df["PID"] == selected_pid, "table"] = st.session_state['selected_table']
 
             updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
             sheets_service.spreadsheets().values().update(
