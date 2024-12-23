@@ -173,8 +173,8 @@ def display_reception_tab():
 
     # Filter rows where the current user or unprocessed rows are shown
     filtered_df = reception_df[
-        (reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)
-    ]
+        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
+        (reception_df["ketThucLayMau"] != "1")
     filtered_df = filtered_df.sort_values(by="thoiGianNhanMau")
 
     st.write("### Patients for Current Receptionist")
