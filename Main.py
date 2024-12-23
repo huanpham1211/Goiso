@@ -345,7 +345,37 @@ def display_table_tab():
         placeholder.empty()
 
 
+# Function to update logout time for previous sessions
+def handle_unexpected_logout():
+    """Updates thoiGianLogout for previous sessions if not already logged out."""
+    vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+    logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
 
+    # Fetch current login log data
+    login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
+
+    if not login_log_df.empty:
+        # Find rows where thoiGianLogout is empty for the current user and table
+        login_log_df = login_log_df.replace("", None)
+        user_rows = login_log_df[
+            (login_log_df["tenNhanVien"] == st.session_state["user_info"]["tenNhanVien"]) &
+            (login_log_df["table"] == st.session_state["selected_table"]) &
+            (login_log_df["thoiGianLogout"].isna())
+        ]
+
+        # Update thoiGianLogout for those rows
+        if not user_rows.empty:
+            for idx in user_rows.index:
+                login_log_df.at[idx, "thoiGianLogout"] = logout_time
+
+            # Push updated data back to Google Sheets
+            updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=LOGIN_LOG_SHEET_ID,
+                range=LOGIN_LOG_SHEET_RANGE,
+                valueInputOption="USER_ENTERED",
+                body={"values": updated_values}
+            ).execute()
 
         
 # Main App Logic with restricted access for table 6 ("Nhận mẫu") and tables 1–5
@@ -374,7 +404,7 @@ else:
     elif selected_tab == "Hoàn tất lấy máu" and selected_table != "6":  # Only for tables 1–5
         display_blood_draw_completion_tab()
 
-    # Logout Button Handling
+     # Logout Button Handling
     if st.sidebar.button("Logout"):
         # Update `thoiGianLogout` in the Login Log Sheet
         vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
@@ -406,5 +436,4 @@ else:
 
         # Clear session state
         st.session_state.clear()
-
 
