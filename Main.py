@@ -337,7 +337,7 @@ def display_table_tab():
 
 
         
-# Main App Logic with restricted access for table 6 ("Nhận mẫu")
+# Main App Logic with restricted access for table 6 ("Nhận mẫu") and tables 1–5
 if not st.session_state.get('is_logged_in', False):
     display_login_page()
 else:
@@ -348,18 +348,20 @@ else:
     # Restrict tabs based on table type
     if selected_table == "6":  # "Nhận mẫu"
         tabs = ["Register New PID", "Table Overview"]
-    else:
-        tabs = ["Register New PID", "Reception", "Table Overview"]
+    else:  # Tables 1–5
+        tabs = ["Reception", "Blood Draw Completion"]
 
     selected_tab = st.sidebar.radio("Navigate", tabs)
 
     # Render the appropriate tab
-    if selected_tab == "Register New PID":
+    if selected_tab == "Register New PID" and selected_table == "6":  # Only for table 6
         display_registration_tab()
-    elif selected_tab == "Reception" and selected_table != "6":  # Prevent access to "Reception" for table 6
-        display_reception_tab()
-    elif selected_tab == "Table Overview":
+    elif selected_tab == "Table Overview" and selected_table == "6":  # Only for table 6
         display_table_tab()
+    elif selected_tab == "Reception" and selected_table != "6":  # Only for tables 1–5
+        display_reception_tab()
+    elif selected_tab == "Blood Draw Completion" and selected_table != "6":  # Only for tables 1–5
+        display_blood_draw_completion_tab()
 
     # Logout Button Handling
     if st.sidebar.button("Logout"):
