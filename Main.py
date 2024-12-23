@@ -251,10 +251,14 @@ def display_blood_draw_completion_tab():
 
         st.success(f"Blood draw for PID {pid} marked as completed.")
 
-        # Clear session state for current PID and switch to the Reception tab
+        # Clear session state for current PID
         del st.session_state["current_pid"]
         del st.session_state["current_ten_benh_nhan"]
-        st.session_state["active_tab"] = "Reception"
+
+        # Set a flag to switch to Reception tab
+        st.session_state["show_reception_tab"] = True
+
+
 import time
 
 def display_table_tab():
@@ -317,28 +321,20 @@ else:
     user_info = st.session_state['user_info']
     st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
-    # Add logic to handle active tabs, defaulting to the current selected tab
-    active_tab = st.session_state.get("active_tab", "Reception")
-    tab_options = ["Register New PID", "Reception", "Table Overview"]
-
-    # Safely determine the index for the radio button
-    selected_tab_index = tab_options.index(active_tab) if active_tab in tab_options else 1  # Default to "Reception"
-    selected_tab = st.sidebar.radio("Navigate", tab_options, index=selected_tab_index)
-
-    # Update active tab in session state
-    st.session_state["active_tab"] = selected_tab
-
-    # Navigate to the appropriate tab
-    if selected_tab == "Register New PID":
-        display_registration_tab()
-    elif selected_tab == "Reception":
+        # Check if the user completed a blood draw and redirect to the Reception tab
+    if st.session_state.get("show_reception_tab", False):
+        st.session_state["show_reception_tab"] = False  # Reset the flag
         display_reception_tab()
-    elif selected_tab == "Table Overview":
-        display_table_tab()
+    else:
+        selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception", "Table Overview"])
+        st.session_state["active_tab"] = selected_tab
 
-    # Check for the Blood Draw Completion tab
-    if "current_pid" in st.session_state and "current_ten_benh_nhan" in st.session_state:
-        display_blood_draw_completion_tab()
+        if selected_tab == "Register New PID":
+            display_registration_tab()
+        elif selected_tab == "Reception":
+            display_reception_tab()
+        elif selected_tab == "Table Overview":
+            display_table_tab()
 
     # Logout Button Handling
     if st.sidebar.button("Logout"):
