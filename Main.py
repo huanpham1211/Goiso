@@ -77,14 +77,17 @@ def display_login_page():
 
     # Fetch login log data
     login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-    all_tables = [str(i) for i in range(1, 6)]
+    restricted_tables = [str(i) for i in range(1, 6)]  # Tables 1–5 are restricted
+    available_tables = ["6"]  # Table 6 ("Nhận mẫu") is always available
 
-    # Determine available tables
+    # Determine availability for tables 1–5 based on active logins
     if not login_log_df.empty:
         active_tables = login_log_df[login_log_df['thoiGianLogout'] == ""]["table"].tolist()
-        available_tables = [table for table in all_tables if table not in active_tables]
+        for table in restricted_tables:
+            if table not in active_tables:
+                available_tables.append(table)
     else:
-        available_tables = all_tables  # All tables are available if no log exists
+        available_tables.extend(restricted_tables)  # If no log exists, all tables 1–5 are available
 
     # Table selection dropdown
     selected_table = st.selectbox("Select a table to log in:", available_tables)
@@ -126,9 +129,14 @@ def display_login_page():
                 [[selected_table, user_info['tenNhanVien'], login_time, ""]]
             )
 
-            st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
+            # Custom message for "Nhận mẫu" table
+            if selected_table == "6":
+                st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in as 'Nhận mẫu'.")
+            else:
+                st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
         else:
             st.error("Invalid username or password.")
+
 
 
 
@@ -314,74 +322,61 @@ def display_table_tab():
 
 
         
-# Main App Logic with an additional tab
+# Main App Logic with restricted access for table 6 ("Nhận mẫu")
 if not st.session_state.get('is_logged_in', False):
     display_login_page()
 else:
     user_info = st.session_state['user_info']
-    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
+    selected_table = st.session_state['selected_table']
+    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {selected_table})")
 
-    # Sidebar navigation
-    tabs = ["Register New PID", "Reception", "Table Overview"]
-    if "current_pid" in st.session_state:
-        tabs.append("Blood Draw Completion")
+    # Restrict tabs based on table type
+    if selected_table == "6":  # "Nhận mẫu"
+        tabs = ["Register New PID", "Table Overview"]
+    else:
+        tabs = ["Register New PID", "Reception", "Table Overview"]
 
     selected_tab = st.sidebar.radio("Navigate", tabs)
 
     # Render the appropriate tab
     if selected_tab == "Register New PID":
         display_registration_tab()
-    elif selected_tab == "Reception":
+    elif selected_tab == "Reception" and selected_table != "6":  # Prevent access to "Reception" for table 6
         display_reception_tab()
     elif selected_tab == "Table Overview":
         display_table_tab()
-    elif selected_tab == "Blood Draw Completion":
-        display_blood_draw_completion_tab()
 
-        # Logout Button Handling
+    # Logout Button Handling
     if st.sidebar.button("Logout"):
-        # Get the current time in Vietnam timezone
+        # Update `thoiGianLogout` in the Login Log Sheet
         vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
         logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-    
-        # Fetch the current login log data
+
+        # Fetch current login log data
         login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-    
+
         if not login_log_df.empty:
-            # Replace empty strings with None for processing
+            # Find the row corresponding to the current user's login
             login_log_df = login_log_df.replace("", None)
-    
-            # Find the row corresponding to the current user's login and table
             user_row_index = login_log_df[
                 (login_log_df["tenNhanVien"] == user_info["tenNhanVien"]) &
-                (login_log_df["table"] == st.session_state["selected_table"])
+                (login_log_df["table"] == selected_table)
             ].index.tolist()
-    
+
             if user_row_index:
-                # Get the first matching index
-                user_row_index = user_row_index[0]
-    
-                # Update the 'thoiGianLogout' column for the identified row
+                user_row_index = user_row_index[0]  # Get the first matching index
                 login_log_df.at[user_row_index, "thoiGianLogout"] = logout_time
-    
-                # Convert the DataFrame to a list of lists for Google Sheets API
+
+                # Push updated data back to Google Sheets
                 updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
-    
-                # Write the updated data back to Google Sheets
                 sheets_service.spreadsheets().values().update(
                     spreadsheetId=LOGIN_LOG_SHEET_ID,
                     range=LOGIN_LOG_SHEET_RANGE,
                     valueInputOption="USER_ENTERED",
                     body={"values": updated_values}
                 ).execute()
-    
-                st.success("Logout time logged successfully.")
-            else:
-                st.warning("No matching login record found for the current user and table.")
-        else:
-            st.warning("No login log data available to update.")
-    
-        # Clear the session state
+
+        # Clear session state
         st.session_state.clear()
 
 
