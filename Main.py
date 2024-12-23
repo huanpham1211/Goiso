@@ -340,6 +340,8 @@ def display_table_tab():
 
         # Normalize null values
         nhanmau_df = nhanmau_df.replace("", None)
+        nhanmau_df = nhanmau_df.dropna(subset=["PID", "tenBenhNhan", "table"])
+
 
         # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
         filtered_df = nhanmau_df[
