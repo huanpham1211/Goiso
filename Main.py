@@ -247,23 +247,21 @@ def display_table_tab():
         time.sleep(30)
         
 # Main App Logic with an additional tab
-def main():
-    """Main application logic."""
-    if not st.session_state.get('is_logged_in', False):
-        display_login_page()
-    else:
-        user_info = st.session_state["user_info"]
-        st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
+if not st.session_state.get('is_logged_in', False):
+    display_login_page()
+else:
+    user_info = st.session_state['user_info']
+    st.sidebar.header(f"Logged in as: {user_info['tenNhanVien']} (Table {st.session_state['selected_table']})")
 
-        selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception", "Table Overview"])
-        
-        if selected_tab == "Register New PID":
-            display_registration_tab()
-        elif selected_tab == "Reception":
-            display_reception_tab()
-        elif selected_tab == "Table Overview":
-            display_table_tab()
+    selected_tab = st.sidebar.radio("Navigate", ["Register New PID", "Reception", "Table Overview"])
+    
+    if selected_tab == "Register New PID":
+        display_registration_tab()
+    elif selected_tab == "Reception":
+        display_reception_tab()
+    elif selected_tab == "Table Overview":
+        display_table_tab()
 
-        # Logout logic
-        if st.sidebar.button("Logout"):
-            st.session_state.clear()
+    if st.sidebar.button("Logout"):
+        st.session_state.clear()
+
