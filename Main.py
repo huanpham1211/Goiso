@@ -12,6 +12,8 @@ RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
 RECEPTION_SHEET_RANGE = 'Sheet1'
 LOGIN_LOG_SHEET_ID = '1u6M5pQyeDg44QXynb79YP9Mf1V6JlIqqthKrVx-DAfA'
 LOGIN_LOG_SHEET_RANGE = 'Sheet1'
+NHANVIEN_SHEET_ID = '1kzfwjA0nVLFoW8T5jroLyR2lmtdZp8eaYH-_Pyb0nbk'
+NHANVIEN_SHEET_RANGE = 'Sheet1'
 
 # Load Google credentials from Streamlit Secrets
 google_credentials = st.secrets["GOOGLE_CREDENTIALS"]
@@ -79,7 +81,19 @@ def display_login_page():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        nhanvien_df = fetch_sheet_data(RECEPTION_SHEET_ID, 'Sheet1')
+        # Load the NhanVien sheet data
+        nhanvien_df = fetch_sheet_data(NHANVIEN_SHEET_ID, NHANVIEN_SHEET_RANGE)
+
+        # Check for proper columns in the sheet
+        if 'taiKhoan' not in nhanvien_df.columns or 'matKhau' not in nhanvien_df.columns:
+            st.error("The required columns 'taiKhoan' and 'matKhau' are missing in the NhanVien sheet.")
+            return
+
+        # Trim whitespaces from column names and data
+        nhanvien_df.columns = nhanvien_df.columns.str.strip()
+        nhanvien_df = nhanvien_df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+
+        # Perform login validation
         user = nhanvien_df[(nhanvien_df['taiKhoan'] == username) & (nhanvien_df['matKhau'] == password)]
 
         if not user.empty:
@@ -102,6 +116,7 @@ def display_login_page():
             st.success(f"Welcome, {user_info['tenNhanVien']}! You are logged in at table {selected_table}.")
         else:
             st.error("Invalid username or password.")
+
 
 
 def display_registration_tab():
