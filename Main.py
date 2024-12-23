@@ -142,10 +142,11 @@ def display_registration_tab():
         patient_name = fetch_patient_name(pid)
         if patient_name:
             timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
+            # Append data to the sheet without the selected table column
             append_to_sheet(
                 RECEPTION_SHEET_ID,
                 RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", st.session_state["selected_table"]]]
+                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
             )
             st.success(f"PID {pid} registered successfully with patient name {patient_name}.")
         else:
@@ -167,8 +168,10 @@ def display_reception_tab():
         return
 
     user_name = st.session_state["user_info"]["tenNhanVien"]
+    selected_table = st.session_state["selected_table"]
     reception_df = reception_df.replace("", None)
 
+    # Filter rows where the current user or unprocessed rows are shown
     filtered_df = reception_df[
         (reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)
     ]
@@ -178,15 +181,19 @@ def display_reception_tab():
     st.dataframe(filtered_df, use_container_width=True)
 
     if not filtered_df.empty:
+        # Filter selectable PIDs for marking as received
         selectable_pids = filtered_df[filtered_df["thoiGianLayMau"].isna()]["PID"].tolist()
         selected_pid = st.selectbox("Select a PID to mark as received:", selectable_pids)
+
         if st.button("Mark as Received"):
+            # Update only the selected row with new data
             reception_df.loc[reception_df["PID"] == selected_pid, "thoiGianLayMau"] = datetime.now(
                 pytz.timezone("Asia/Ho_Chi_Minh")
             ).strftime("%Y-%m-%d %H:%M:%S")
             reception_df.loc[reception_df["PID"] == selected_pid, "nguoiLayMau"] = user_name
-            reception_df.loc[reception_df["PID"] == selected_pid, "table"] = st.session_state['selected_table']
+            reception_df.loc[reception_df["PID"] == selected_pid, "table"] = selected_table
 
+            # Prepare the updated values
             updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
             sheets_service.spreadsheets().values().update(
                 spreadsheetId=RECEPTION_SHEET_ID,
@@ -197,6 +204,7 @@ def display_reception_tab():
             st.success(f"PID {selected_pid} marked as received.")
     else:
         st.write("No patients to mark as received.")
+
 
 import time
 
