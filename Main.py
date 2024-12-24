@@ -143,20 +143,14 @@ def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Đăng ký PID mới")
 
-    # Initialize session state for 'pid' and 'reset_pid' if not already set
+    # Initialize session state for 'pid' if not already set
     if "pid" not in st.session_state:
         st.session_state["pid"] = ""
-    if "reset_pid" not in st.session_state:
-        st.session_state["reset_pid"] = False
-
-    # Handle resetting PID
-    if st.session_state["reset_pid"]:
-        st.session_state["pid"] = ""
-        st.session_state["reset_pid"] = False
 
     # Create a text input field linked to session state
     pid = st.text_input("Nhập PID:", key="pid")
 
+    # Two buttons for "Đăng ký" and "Ưu tiên"
     col1, col2 = st.columns(2)
 
     if col1.button("Đăng ký"):
@@ -165,7 +159,7 @@ def display_registration_tab():
             patient_name = fetch_patient_name(pid)
             if patient_name:
                 timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-                # Append data to the sheet without the selected table column
+                # Append data to the sheet
                 append_to_sheet(
                     RECEPTION_SHEET_ID,
                     RECEPTION_SHEET_RANGE,
@@ -173,7 +167,8 @@ def display_registration_tab():
                 )
                 st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
                 # Clear the input field
-                st.session_state["reset_pid"] = True
+                st.session_state["pid"] = ""
+                st.experimental_rerun()  # Trigger a rerun to refresh the UI
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
@@ -189,15 +184,17 @@ def display_registration_tab():
                 append_to_sheet(
                     RECEPTION_SHEET_ID,
                     RECEPTION_SHEET_RANGE,
-                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", "", "", "", "1"]]
+                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "1"]]
                 )
                 st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
                 # Clear the input field
-                st.session_state["reset_pid"] = True
+                st.session_state["pid"] = ""
+                st.experimental_rerun()  # Trigger a rerun to refresh the UI
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
             st.warning("Vui lòng nhập PID.")
+
 
 
 
