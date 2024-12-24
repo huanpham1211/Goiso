@@ -319,7 +319,6 @@ def display_blood_draw_completion_tab():
 
 def display_table_tab():
     """Displays the Table tab for managing PIDs."""
-    st.title("DANH SÁCH CHỜ GỌI SỐ")
     
     # Create a placeholder for the table content
     placeholder = st.empty()
@@ -343,7 +342,6 @@ def display_table_tab():
         nhanmau_df = nhanmau_df.replace("", None)
         nhanmau_df = nhanmau_df.dropna(subset=["PID", "tenBenhNhan", "table"])
 
-
         # Filter rows where 'table' is not null and 'ketThucLayMau' is not "1"
         filtered_df = nhanmau_df[
             nhanmau_df["table"].notna() & (nhanmau_df["ketThucLayMau"] != "1")
@@ -366,9 +364,9 @@ def display_table_tab():
 
                     # Create columns for each row
                     col1, col2, col3 = st.columns([2, 4, 2])
-                    col1.write(f"**PID:** {pid}")
-                    col2.write(f"**Họ tên:** {ten_benh_nhan}")
-                    col3.write(f"**Bàn:** {table}")
+                    col1.markdown(f"<h3><b>PID:</b> {pid}</h3>", unsafe_allow_html=True)
+                    col2.markdown(f"<h3><b>Họ tên:</b> {ten_benh_nhan}</h3>", unsafe_allow_html=True)
+                    col3.markdown(f"<h3><b>Bàn:</b> {table}</h3>", unsafe_allow_html=True)
             else:
                 st.write("Chưa có số thứ tự tiếp theo.")
 
