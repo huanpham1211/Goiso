@@ -145,9 +145,16 @@ def display_login_page():
 def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Đăng ký PID mới")
-    pid = st.text_input("Nhập PID:")
 
-    if st.button("Đăng ký"):
+    # Initialize session state for 'pid' if not already done
+    if "pid" not in st.session_state:
+        st.session_state["pid"] = ""
+
+    # Create a text input field linked to session state
+    pid = st.text_input("Nhập PID:", value=st.session_state["pid"], key="pid")
+
+    # Trigger registration when Enter is pressed or the button is clicked
+    if pid and st.button("Đăng ký"):
         user_info = st.session_state["user_info"]
         patient_name = fetch_patient_name(pid)
         if patient_name:
@@ -159,8 +166,11 @@ def display_registration_tab():
                 [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
             )
             st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
+            # Clear the input field by resetting the session state
+            st.session_state["pid"] = ""
         else:
             st.error("Không thể lấy thông tin bệnh nhân.")
+
 
 
 def display_reception_tab():
