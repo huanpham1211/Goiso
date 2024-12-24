@@ -177,25 +177,18 @@ def display_registration_tab():
         patient_name = fetch_patient_name(pid)
         if patient_name:
             timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-            # Append data to the sheet
+            # Append data to the sheet with is_priority set to "1"
             append_to_sheet(
                 RECEPTION_SHEET_ID,
                 RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
+                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "1"]]
             )
-            # Update the priority column for this PID
-            update_sheet(
-                RECEPTION_SHEET_ID,
-                RECEPTION_SHEET_RANGE,
-                pid,
-                "is_priority",
-                "1"
-            )
-            st.success(f"PID {pid} được đánh dấu ưu tiên thành công cho {patient_name}.")
+            st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
             # Clear the input field
             st.session_state["pid"] = ""
         else:
             st.error("Không thể lấy thông tin bệnh nhân.")
+
 
 
 
