@@ -356,7 +356,7 @@ def display_table_tab():
         # Display the table content dynamically using columns
         with placeholder.container():
             if not filtered_df.empty:
-                st.write("### Thứ tự")
+                st.write("### Thứ tự bàn lấy máu")
                 for idx, row in filtered_df.iterrows():
                     pid = row["PID"]
                     ten_benh_nhan = row["tenBenhNhan"]
