@@ -364,8 +364,8 @@ def display_table_tab():
 
                     # Create columns for each row
                     col1, col2, col3 = st.columns([2, 4, 2])
-                    col1.markdown(f"<h3><b>PID:</b> {pid}</h3>", unsafe_allow_html=True)
-                    col2.markdown(f"<h3><b>Họ tên:</b> {ten_benh_nhan}</h3>", unsafe_allow_html=True)
+                    col1.markdown(f"<h3><b></b> {pid}</h3>", unsafe_allow_html=True)
+                    col2.markdown(f"<h3><b></b> {ten_benh_nhan}</h3>", unsafe_allow_html=True)
                     col3.markdown(f"<h3><b>Bàn:</b> {table}</h3>", unsafe_allow_html=True)
             else:
                 st.write("Chưa có số thứ tự tiếp theo.")
