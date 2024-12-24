@@ -181,7 +181,7 @@ def display_registration_tab():
             append_to_sheet(
                 RECEPTION_SHEET_ID,
                 RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "1"]]
+                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", "", "", "", "1"]]
             )
             st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
             # Clear the input field
