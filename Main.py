@@ -442,26 +442,27 @@ else:
     elif selected_tab == "Hoàn tất lấy máu" and selected_table != "6":  # Only for tables 1–5
         display_blood_draw_completion_tab()
 
-         # Constants
-    SESSION_TIMEOUT_MINUTES = 15  # Define session timeout in minutes
-    HEARTBEAT_INTERVAL_SECONDS = 30  # Define heartbeat interval in seconds
-    
-    # Function to update logout time in Google Sheets
-    def update_logout_time(user_name, selected_table, logout_time):
+     # Logout Button Handling
+    if st.sidebar.button("Logout"):
+        # Update `thoiGianLogout` in the Login Log Sheet
+        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+
         # Fetch current login log data
         login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-    
+
         if not login_log_df.empty:
+            # Find the row corresponding to the current user's login
             login_log_df = login_log_df.replace("", None)
             user_row_index = login_log_df[
-                (login_log_df["tenNhanVien"] == user_name) &
+                (login_log_df["tenNhanVien"] == user_info["tenNhanVien"]) &
                 (login_log_df["table"] == selected_table)
             ].index.tolist()
-    
+
             if user_row_index:
-                user_row_index = user_row_index[0]
+                user_row_index = user_row_index[0]  # Get the first matching index
                 login_log_df.at[user_row_index, "thoiGianLogout"] = logout_time
-    
+
                 # Push updated data back to Google Sheets
                 updated_values = [login_log_df.columns.tolist()] + login_log_df.fillna("").values.tolist()
                 sheets_service.spreadsheets().values().update(
@@ -470,31 +471,7 @@ else:
                     valueInputOption="USER_ENTERED",
                     body={"values": updated_values}
                 ).execute()
-    
-    # Handle Logout Button
-    if st.sidebar.button("Logout"):
-        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-        update_logout_time(user_info["tenNhanVien"], selected_table, logout_time)
+
+        # Clear session state
         st.session_state.clear()
-    
-    # Session Timeout Logic
-    if "last_active_time" not in st.session_state:
-        st.session_state["last_active_time"] = datetime.now()
-    
-    if (datetime.now() - st.session_state["last_active_time"]) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-        vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        logout_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
-        update_logout_time(user_info["tenNhanVien"], selected_table, logout_time)
-        st.session_state.clear()
-        st.warning("Session expired due to inactivity. Please log in again.")
-    
-    # Heartbeat Mechanism
-    if "heartbeat" not in st.session_state:
-        st.session_state["heartbeat"] = datetime.now()
-    
-    if (datetime.now() - st.session_state["heartbeat"]).seconds > HEARTBEAT_INTERVAL_SECONDS:
-        st.session_state["heartbeat"] = datetime.now()
-        # Optionally update last_active_time here to prevent premature session expiration
-        st.session_state["last_active_time"] = datetime.now()
 
