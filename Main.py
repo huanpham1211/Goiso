@@ -143,16 +143,9 @@ def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Đăng ký PID mới")
 
-    # Initialize session state for 'pid' and 'clear_input' if not already set
+    # Initialize session state for 'pid' if not already set
     if "pid" not in st.session_state:
         st.session_state["pid"] = ""
-    if "clear_input" not in st.session_state:
-        st.session_state["clear_input"] = False
-
-    # Check if the input needs to be cleared
-    if st.session_state["clear_input"]:
-        st.session_state["pid"] = ""
-        st.session_state["clear_input"] = False
 
     # Create a text input field linked to session state
     pid = st.text_input("Nhập PID:", key="pid")
@@ -161,7 +154,7 @@ def display_registration_tab():
 
     if col1.button("Đăng ký"):
         if pid:  # Ensure the PID is not empty
-            user_info = st.session_state["user_info"]
+            user_info = st.session_state.get("user_info", {})
             patient_name = fetch_patient_name(pid)
             if patient_name:
                 timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
@@ -169,12 +162,11 @@ def display_registration_tab():
                 append_to_sheet(
                     RECEPTION_SHEET_ID,
                     RECEPTION_SHEET_RANGE,
-                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
+                    [[pid, patient_name, timestamp, user_info.get("tenNhanVien", ""), "", ""]]
                 )
                 st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
-                # Set the flag to clear the input
-                st.session_state["clear_input"] = True
-                st.experimental_rerun()
+                # Clear the input field
+                st.session_state["pid"] = ""
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
@@ -182,7 +174,7 @@ def display_registration_tab():
 
     if col2.button("Ưu tiên"):
         if pid:  # Ensure the PID is not empty
-            user_info = st.session_state["user_info"]
+            user_info = st.session_state.get("user_info", {})
             patient_name = fetch_patient_name(pid)
             if patient_name:
                 timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
@@ -190,12 +182,11 @@ def display_registration_tab():
                 append_to_sheet(
                     RECEPTION_SHEET_ID,
                     RECEPTION_SHEET_RANGE,
-                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "1"]]
+                    [[pid, patient_name, timestamp, user_info.get("tenNhanVien", ""), "", "1"]]
                 )
                 st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
-                # Set the flag to clear the input
-                st.session_state["clear_input"] = True
-                st.experimental_rerun()
+                # Clear the input field
+                st.session_state["pid"] = ""
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
