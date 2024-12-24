@@ -139,56 +139,58 @@ def display_login_page():
             st.error("Sai thông tin User hoặc Password.")
 
 
-
-
-
 def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Đăng ký PID mới")
 
-    # Initialize session state for 'pid' if not already done
+    # Initialize session state for 'pid' if not already set
     if "pid" not in st.session_state:
         st.session_state["pid"] = ""
 
     # Create a text input field linked to session state
-    pid = st.text_input("Nhập PID:", value=st.session_state["pid"], key="pid")
+    pid = st.text_input("Nhập PID:", key="pid")
 
     col1, col2 = st.columns(2)
 
     if col1.button("Đăng ký"):
-        user_info = st.session_state["user_info"]
-        patient_name = fetch_patient_name(pid)
-        if patient_name:
-            timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-            # Append data to the sheet without the selected table column
-            append_to_sheet(
-                RECEPTION_SHEET_ID,
-                RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
-            )
-            st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
-            # Clear the input field
-            st.session_state["pid"] = ""
+        if pid:  # Ensure the PID is not empty
+            user_info = st.session_state["user_info"]
+            patient_name = fetch_patient_name(pid)
+            if patient_name:
+                timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
+                # Append data to the sheet without the selected table column
+                append_to_sheet(
+                    RECEPTION_SHEET_ID,
+                    RECEPTION_SHEET_RANGE,
+                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", ""]]
+                )
+                st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
+                # Clear the input field
+                st.session_state["pid"] = ""
+            else:
+                st.error("Không thể lấy thông tin bệnh nhân.")
         else:
-            st.error("Không thể lấy thông tin bệnh nhân.")
+            st.warning("Vui lòng nhập PID.")
 
     if col2.button("Ưu tiên"):
-        user_info = st.session_state["user_info"]
-        patient_name = fetch_patient_name(pid)
-        if patient_name:
-            timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
-            # Append data to the sheet with is_priority set to "1"
-            append_to_sheet(
-                RECEPTION_SHEET_ID,
-                RECEPTION_SHEET_RANGE,
-                [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", "", "", "", "1"]]
-            )
-            st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
-            # Clear the input field
-            st.session_state["pid"] = ""
+        if pid:  # Ensure the PID is not empty
+            user_info = st.session_state["user_info"]
+            patient_name = fetch_patient_name(pid)
+            if patient_name:
+                timestamp = datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
+                # Append data to the sheet with is_priority set to "1"
+                append_to_sheet(
+                    RECEPTION_SHEET_ID,
+                    RECEPTION_SHEET_RANGE,
+                    [[pid, patient_name, timestamp, user_info["tenNhanVien"], "", "", "", "", "", "1"]]
+                )
+                st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
+                # Clear the input field
+                st.session_state["pid"] = ""
+            else:
+                st.error("Không thể lấy thông tin bệnh nhân.")
         else:
-            st.error("Không thể lấy thông tin bệnh nhân.")
-
+            st.warning("Vui lòng nhập PID.")
 
 
 
