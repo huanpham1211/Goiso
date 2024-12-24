@@ -143,9 +143,16 @@ def display_registration_tab():
     """Displays the Registration tab."""
     st.title("Đăng ký PID mới")
 
-    # Initialize session state for 'pid' if not already set
+    # Initialize session state for 'pid' and 'reset_pid' if not already set
     if "pid" not in st.session_state:
         st.session_state["pid"] = ""
+    if "reset_pid" not in st.session_state:
+        st.session_state["reset_pid"] = False
+
+    # Handle resetting PID
+    if st.session_state["reset_pid"]:
+        st.session_state["pid"] = ""
+        st.session_state["reset_pid"] = False
 
     # Create a text input field linked to session state
     pid = st.text_input("Nhập PID:", key="pid")
@@ -166,7 +173,7 @@ def display_registration_tab():
                 )
                 st.success(f"PID {pid} đăng ký thành công cho {patient_name}.")
                 # Clear the input field
-                st.session_state["pid"] = ""
+                st.session_state["reset_pid"] = True
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
@@ -186,7 +193,7 @@ def display_registration_tab():
                 )
                 st.success(f"PID {pid} đăng ký thành công và được đánh dấu ưu tiên cho {patient_name}.")
                 # Clear the input field
-                st.session_state["pid"] = ""
+                st.session_state["reset_pid"] = True
             else:
                 st.error("Không thể lấy thông tin bệnh nhân.")
         else:
