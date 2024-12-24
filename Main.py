@@ -76,32 +76,18 @@ def display_login_page():
     """Displays the login page."""
     st.title("Login")
 
-    # Fetch login log data
-    login_log_df = fetch_sheet_data(LOGIN_LOG_SHEET_ID, LOGIN_LOG_SHEET_RANGE)
-    restricted_tables = [str(i) for i in range(1, 6)]  # Tables 1–5 are restricted
-    available_tables = []  # List to collect available table options
-
-    # Determine availability for tables 1–5 based on active logins
-    if not login_log_df.empty:
-        active_tables = login_log_df[login_log_df['thoiGianLogout'] == ""]["table"].tolist()
-        for table in restricted_tables:
-            if table not in active_tables:
-                available_tables.append(table)
-    else:
-        available_tables.extend(restricted_tables)  # If no log exists, all tables 1–5 are available
-
-    # Add "Nhận mẫu" (table 6), which is always available
-    available_tables.append("6")
+    # All table options (1–6)
+    all_tables = [str(i) for i in range(1, 7)]
 
     # Create display mapping for the dropdown
-    table_display_mapping = {table: table for table in restricted_tables}
+    table_display_mapping = {table: table for table in all_tables[:-1]}
     table_display_mapping["6"] = "Nhận mẫu"
 
     # Reverse mapping for internal use
     display_to_internal_mapping = {v: k for k, v in table_display_mapping.items()}
 
     # Generate dropdown options using the display mapping
-    dropdown_options = [table_display_mapping[table] for table in available_tables]
+    dropdown_options = [table_display_mapping[table] for table in all_tables]
 
     # Table selection dropdown
     selected_display_table = st.selectbox("Select a table to log in:", dropdown_options)
@@ -146,7 +132,7 @@ def display_login_page():
 
             # Custom message for "Nhận mẫu" table
             if selected_table == "6":
-                st.success(f"Xin chào, {user_info['tenNhanVien']}! Đã đăng nhập vào'Nhận mẫu'.")
+                st.success(f"Xin chào, {user_info['tenNhanVien']}! Đã đăng nhập vào 'Nhận mẫu'.")
             else:
                 st.success(f"Xin chào, {user_info['tenNhanVien']}! Đã đăng nhập vào bàn lấy máu số {selected_table}.")
         else:
