@@ -134,38 +134,50 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.title("Lấy máu")
 
-    # Database connection setup
-    conn = pyodbc.connect(
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        "SERVER=10.17.4.38,1433;"
-        "DATABASE=QualityControl;"
-        "UID=xetnghiemhv;"
-        "PWD=Huan@123"
-    )
-    cursor = conn.cursor()
+    # Initialize session state for refresh if not already set
+    if "refresh_data" not in st.session_state:
+        st.session_state["refresh_data"] = True
 
     # Refresh Button
     if st.button("Refresh"):
-        st.experimental_rerun()
+        st.session_state["refresh_data"] = True  # Set the refresh flag to True
 
-    # Fetch data from the LayMauXetNghiem table
-    query = """
-    SELECT maBenhNhan, tenBenhNhan, thoiGianNhanMau, thoiGianLayMau, nguoiLay, banGoiSo, trangThaiLayMau 
-    FROM [QualityControl].[dbo].[LayMauXetNghiem]
-    WHERE trangThaiLayMau IS NULL;
-    """
-    reception_df = pd.read_sql(query, conn)
+    # Fetch data from the database only if refresh flag is set
+    if st.session_state["refresh_data"]:
+        # Database connection setup
+        conn = pyodbc.connect(
+            "DRIVER={ODBC Driver 17 for SQL Server};"
+            "SERVER=10.17.4.38,1433;"
+            "DATABASE=QualityControl;"
+            "UID=xetnghiemhv;"
+            "PWD=Huan@123"
+        )
+        cursor = conn.cursor()
+
+        # Fetch data from the LayMauXetNghiem table
+        query = """
+        SELECT maBenhNhan, tenBenhNhan, thoiGianNhanMau, thoiGianLayMau, nguoiLay, banGoiSo, trangThaiLayMau 
+        FROM [QualityControl].[dbo].[LayMauXetNghiem]
+        WHERE trangThaiLayMau IS NULL;
+        """
+        reception_df = pd.read_sql(query, conn)
+        conn.close()
+
+        # Store fetched data in session state
+        st.session_state["reception_data"] = reception_df
+        st.session_state["refresh_data"] = False  # Reset the refresh flag
+
+    # Load the data from session state
+    reception_df = st.session_state.get("reception_data", pd.DataFrame())
 
     if reception_df.empty:
         st.write("No PIDs registered yet.")
-        conn.close()
         return
 
     # Ensure required columns exist
     required_columns = {"maBenhNhan", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLay", "banGoiSo", "trangThaiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The table must contain these columns: {required_columns}")
-        conn.close()
         return
 
     # Normalize null values
@@ -180,49 +192,60 @@ def display_reception_tab():
     reception_df = reception_df.sort_values(by=["thoiGianNhanMau"], ascending=True)
 
     # Display filtered rows
-    if not reception_df.empty:
-        for idx, row in reception_df.iterrows():
-            pid = row["maBenhNhan"]
-            ten_benh_nhan = row["tenBenhNhan"]
-            col1, col2, col3, col4 = st.columns([3, 4, 2, 2])
+    for idx, row in reception_df.iterrows():
+        pid = row["maBenhNhan"]
+        ten_benh_nhan = row["tenBenhNhan"]
+        col1, col2, col3, col4 = st.columns([3, 4, 2, 2])
 
-            col1.write(f"**PID:** {pid}")
-            col2.write(f"**Họ tên:** {ten_benh_nhan}")
+        col1.write(f"**PID:** {pid}")
+        col2.write(f"**Họ tên:** {ten_benh_nhan}")
 
-            # "Receive" button
-            if col3.button("Receive", key=f"receive_{pid}_{idx}"):
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                update_query = """
-                UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
-                SET thoiGianLayMau = ?, nguoiLay = ?, banGoiSo = ?
-                WHERE maBenhNhan = ?;
-                """
-                cursor.execute(update_query, current_time, ma_nvyt, selected_table, pid)
-                conn.commit()
-                st.success(f"Bắt đầu lấy máu cho PID {pid}.")
-                st.experimental_rerun()
+        # "Receive" button
+        if col3.button("Receive", key=f"receive_{pid}_{idx}"):
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn = pyodbc.connect(
+                "DRIVER={ODBC Driver 17 for SQL Server};"
+                "SERVER=10.17.4.38,1433;"
+                "DATABASE=QualityControl;"
+                "UID=xetnghiemhv;"
+                "PWD=Huan@123"
+            )
+            cursor = conn.cursor()
+            update_query = """
+            UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
+            SET thoiGianLayMau = ?, nguoiLay = ?, banGoiSo = ?
+            WHERE maBenhNhan = ?;
+            """
+            cursor.execute(update_query, current_time, ma_nvyt, selected_table, pid)
+            conn.commit()
+            conn.close()
+            st.success(f"Bắt đầu lấy máu cho PID {pid}.")
+            st.session_state["refresh_data"] = True  # Trigger data refresh
 
-            # "Blood draw completed" button
-            if col4.button("Blood draw completed", key=f"completed_{pid}_{idx}"):
-                update_query = """
-                UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
-                SET trangThaiLayMau = '1'
-                WHERE maBenhNhan = ?;
-                """
-                cursor.execute(update_query, pid)
-                conn.commit()
-                st.success(f"Hoàn tất lấy máu cho PID {pid}.")
-                st.experimental_rerun()
-    else:
-        st.write("Chưa có bệnh nhân.")
+        # "Blood draw completed" button
+        if col4.button("Blood draw completed", key=f"completed_{pid}_{idx}"):
+            conn = pyodbc.connect(
+                "DRIVER={ODBC Driver 17 for SQL Server};"
+                "SERVER=10.17.4.38,1433;"
+                "DATABASE=QualityControl;"
+                "UID=xetnghiemhv;"
+                "PWD=Huan@123"
+            )
+            cursor = conn.cursor()
+            update_query = """
+            UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
+            SET trangThaiLayMau = '1'
+            WHERE maBenhNhan = ?;
+            """
+            cursor.execute(update_query, pid)
+            conn.commit()
+            conn.close()
+            st.success(f"Hoàn tất lấy máu cho PID {pid}.")
+            st.session_state["refresh_data"] = True  # Trigger data refresh
 
-    # Close the database connection
-    conn.close()
 
 
 
-
-        
 if not st.session_state.get('is_logged_in', False):
     display_login_page()
 else:
@@ -232,16 +255,10 @@ else:
     # Sidebar header with user information
     st.sidebar.header(f"{user_info['tenNhanVien']} (Bàn {selected_table})")
 
-    # Restrict tabs to tables 1–5
+    # Restrict access to tables 1–5
     if selected_table in ["1", "2", "3", "4", "5"]:
-        tabs = ["Gọi bệnh nhân", "Hoàn tất lấy máu"]
-
-        selected_tab = st.sidebar.radio("Navigate", tabs)
-
-        # Render the appropriate tab
-        if selected_tab == "Gọi bệnh nhân":
-            display_reception_tab()
-     
+        # Display the Reception tab directly
+        display_reception_tab()
     else:
         st.error("Only tables 1–5 are allowed.")
 
@@ -278,5 +295,6 @@ else:
         # Clear session state
         st.session_state.clear()
         st.success("You have been logged out.")
+
 
 
