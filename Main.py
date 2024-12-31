@@ -8,6 +8,8 @@ from googleapiclient.discovery import build
 import requests
 import time
 from datetime import datetime, timedelta
+import pyodbc
+
 
 # Google Sheets document IDs and ranges
 RECEPTION_SHEET_ID = '1Y3uYVe_A7w00_AfywqprA7qolsf8CMOvgrUHV3hmB6E'
@@ -201,52 +203,51 @@ def display_reception_tab():
     """Displays the Reception tab for managing PIDs."""
     st.title("Lấy máu")
 
-    # Add a refresh button to reload the data
-    if st.button("Refresh"):
-        # Fetch the latest data without rerun
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-    else:
-        # Fetch the data at the beginning
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
+    # Database connection setup
+    conn = pyodbc.connect(
+        "DRIVER={ODBC Driver 17 for SQL Server};"
+        "SERVER=10.17.4.38,1433;"
+        "DATABASE=QualityControl;"
+        "UID=xetnghiemhv;"
+        "PWD=Huan@123"
+    )
+    cursor = conn.cursor()
+
+    # Fetch data from the LayMauXetNghiem table
+    query = """
+    SELECT PID, tenBenhNhan, thoiGianNhanMau, thoiGianLayMau, nguoiLay, banGoiSo, ketThucLayMau 
+    FROM [QualityControl].[dbo].[LayMauXetNghiem];
+    """
+    reception_df = pd.read_sql(query, conn)
 
     if reception_df.empty:
         st.write("No PIDs registered yet.")
         return
 
     # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLayMau", "table", "ketThucLayMau"}
+    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLay", "banGoiSo", "ketThucLayMau"}
     if not required_columns.issubset(reception_df.columns):
-        st.error(f"The sheet must contain these columns: {required_columns}")
+        st.error(f"The table must contain these columns: {required_columns}")
         return
 
-    user_name = st.session_state["user_info"]["tenNhanVien"]
+    user_info = st.session_state.get("user_info", {})
+    user_name = user_info.get("tenNhanVien")
+    ma_nvyt = user_info.get("maNVYT")
     selected_table = st.session_state.get("selected_table", None)
+
+    # Normalize null values
     reception_df = reception_df.replace("", None)
 
-    # Add a new column to mark duplicates
-    reception_df["is_duplicate"] = reception_df.duplicated(subset=["PID"], keep=False)
-
     # Filter rows based on the following criteria:
-    # - Non-duplicates can be seen by all tables
-    # - Duplicates can only be seen by Table 4 or Table 5 users
-    if selected_table in ["4", "5"]:
-        filtered_df = reception_df[
-            ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-            (reception_df["ketThucLayMau"] != "1")
-        ]
-    else:
-        filtered_df = reception_df[
-            (((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLayMau"] == user_name)) &
-             (reception_df["is_duplicate"] == False)) &
-            (reception_df["ketThucLayMau"] != "1")
-        ]
+    filtered_df = reception_df[
+        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLay"] == ma_nvyt)) &
+        (reception_df["ketThucLayMau"] != "1")
+    ]
 
     # Sort the filtered rows:
-    # 1. Duplicates first (`is_duplicate=True`)
-    # 2. By `thoiGianNhanMau` in ascending order
-    filtered_df = filtered_df.sort_values(by=["is_duplicate", "thoiGianNhanMau"], ascending=[False, True])
+    # 1. By `thoiGianNhanMau` in ascending order
+    filtered_df = filtered_df.sort_values(by=["thoiGianNhanMau"], ascending=True)
 
-    # Display only relevant actions without showing the entire dataframe
     if not filtered_df.empty:
         for idx, row in filtered_df.iterrows():
             pid = row["PID"]
@@ -258,37 +259,23 @@ def display_reception_tab():
             # Generate a unique key for each button by including `pid` and `idx`
             button_key = f"receive_{pid}_{idx}"
             if col3.button("Receive", key=button_key):
-                # Fill in the `NhanMau` sheet with current data
-                vietnam_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-                current_time = datetime.now(vietnam_tz).strftime("%Y-%m-%d %H:%M:%S")
+                # Update the LayMauXetNghiem table with current time and user information
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                reception_df.loc[reception_df["PID"] == pid, "thoiGianLayMau"] = current_time
-                reception_df.loc[reception_df["PID"] == pid, "nguoiLayMau"] = user_name
-                reception_df.loc[reception_df["PID"] == pid, "table"] = selected_table
+                update_query = """
+                UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
+                SET thoiGianLayMau = ?, nguoiLay = ?, banGoiSo = ?
+                WHERE PID = ?;
+                """
+                cursor.execute(update_query, current_time, ma_nvyt, selected_table, pid)
+                conn.commit()
 
-                # Convert DataFrame to a JSON-serializable format
-                json_ready_df = reception_df.fillna("").astype(str)
-
-                # Prepare the updated values
-                updated_values = [json_ready_df.columns.tolist()] + json_ready_df.values.tolist()
-                try:
-                    sheets_service.spreadsheets().values().update(
-                        spreadsheetId=RECEPTION_SHEET_ID,
-                        range=RECEPTION_SHEET_RANGE,
-                        valueInputOption="USER_ENTERED",
-                        body={"values": updated_values}
-                    ).execute()
-                except Exception as e:
-                    st.error(f"Failed to update Google Sheets: {e}")
-                    return
-
-                # Set session variables for Blood Draw Completion
-                st.session_state["current_pid"] = pid
-                st.session_state["current_ten_benh_nhan"] = ten_benh_nhan
-
-                st.success(f"Bắt đầu lấy máu cho PID {pid}. Bấm vào thẻ 'Hoàn tất lấy máu' để tiếp tục.")
+                st.success(f"Bắt đầu lấy máu cho PID {pid}.")
     else:
         st.write("Chưa có bệnh nhân.")
+
+    # Close the database connection
+    conn.close()
 
 
 
