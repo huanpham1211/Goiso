@@ -144,113 +144,81 @@ def display_reception_tab():
     )
     cursor = conn.cursor()
 
+    # Refresh Button
+    if st.button("Refresh"):
+        st.experimental_rerun()
+
     # Fetch data from the LayMauXetNghiem table
     query = """
-    SELECT PID, tenBenhNhan, thoiGianNhanMau, thoiGianLayMau, nguoiLay, banGoiSo, ketThucLayMau 
-    FROM [QualityControl].[dbo].[LayMauXetNghiem];
+    SELECT maBenhNhan, tenBenhNhan, thoiGianNhanMau, thoiGianLayMau, nguoiLay, banGoiSo, trangThaiLayMau 
+    FROM [QualityControl].[dbo].[LayMauXetNghiem]
+    WHERE trangThaiLayMau IS NULL;
     """
     reception_df = pd.read_sql(query, conn)
 
     if reception_df.empty:
         st.write("No PIDs registered yet.")
+        conn.close()
         return
 
     # Ensure required columns exist
-    required_columns = {"PID", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLay", "banGoiSo", "ketThucLayMau"}
+    required_columns = {"maBenhNhan", "tenBenhNhan", "thoiGianNhanMau", "thoiGianLayMau", "nguoiLay", "banGoiSo", "trangThaiLayMau"}
     if not required_columns.issubset(reception_df.columns):
         st.error(f"The table must contain these columns: {required_columns}")
+        conn.close()
         return
+
+    # Normalize null values
+    reception_df = reception_df.replace("", None)
 
     user_info = st.session_state.get("user_info", {})
     user_name = user_info.get("tenNhanVien")
     ma_nvyt = user_info.get("maNVYT")
     selected_table = st.session_state.get("selected_table", None)
 
-    # Normalize null values
-    reception_df = reception_df.replace("", None)
+    # Sort the rows by `thoiGianNhanMau` in ascending order
+    reception_df = reception_df.sort_values(by=["thoiGianNhanMau"], ascending=True)
 
-    # Filter rows based on the following criteria:
-    filtered_df = reception_df[
-        ((reception_df["thoiGianLayMau"].isna()) | (reception_df["nguoiLay"] == ma_nvyt)) &
-        (reception_df["ketThucLayMau"] != "1")
-    ]
-
-    # Sort the filtered rows:
-    # 1. By `thoiGianNhanMau` in ascending order
-    filtered_df = filtered_df.sort_values(by=["thoiGianNhanMau"], ascending=True)
-
-    if not filtered_df.empty:
-        for idx, row in filtered_df.iterrows():
-            pid = row["PID"]
+    # Display filtered rows
+    if not reception_df.empty:
+        for idx, row in reception_df.iterrows():
+            pid = row["maBenhNhan"]
             ten_benh_nhan = row["tenBenhNhan"]
-            col1, col2, col3 = st.columns([4, 4, 2])
+            col1, col2, col3, col4 = st.columns([3, 4, 2, 2])
+
             col1.write(f"**PID:** {pid}")
             col2.write(f"**Họ tên:** {ten_benh_nhan}")
 
-            # Generate a unique key for each button by including `pid` and `idx`
-            button_key = f"receive_{pid}_{idx}"
-            if col3.button("Receive", key=button_key):
-                # Update the LayMauXetNghiem table with current time and user information
+            # "Receive" button
+            if col3.button("Receive", key=f"receive_{pid}_{idx}"):
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
                 update_query = """
                 UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
                 SET thoiGianLayMau = ?, nguoiLay = ?, banGoiSo = ?
-                WHERE PID = ?;
+                WHERE maBenhNhan = ?;
                 """
                 cursor.execute(update_query, current_time, ma_nvyt, selected_table, pid)
                 conn.commit()
-
                 st.success(f"Bắt đầu lấy máu cho PID {pid}.")
+                st.experimental_rerun()
+
+            # "Blood draw completed" button
+            if col4.button("Blood draw completed", key=f"completed_{pid}_{idx}"):
+                update_query = """
+                UPDATE [QualityControl].[dbo].[LayMauXetNghiem]
+                SET trangThaiLayMau = '1'
+                WHERE maBenhNhan = ?;
+                """
+                cursor.execute(update_query, pid)
+                conn.commit()
+                st.success(f"Hoàn tất lấy máu cho PID {pid}.")
+                st.experimental_rerun()
     else:
         st.write("Chưa có bệnh nhân.")
 
     # Close the database connection
     conn.close()
 
-
-
-
-def display_blood_draw_completion_tab():
-    """Handles the Blood Draw Completion tab."""
-    if "current_pid" not in st.session_state or "current_ten_benh_nhan" not in st.session_state:
-        st.write("Chưa có bệnh nhân cần lấy máu.")
-        return
-
-    pid = st.session_state["current_pid"]
-    ten_benh_nhan = st.session_state["current_ten_benh_nhan"]
-
-    st.write("### Blood Draw Completion")
-    st.write(f"**PID:** {pid}")
-    st.write(f"**Họ tên:** {ten_benh_nhan}")
-
-    if st.button("Blood draw completed"):
-        # Fetch the sheet data
-        reception_df = fetch_sheet_data(RECEPTION_SHEET_ID, RECEPTION_SHEET_RANGE)
-
-        # Update the column `ketThucLayMau` for the selected PID
-        if "ketThucLayMau" not in reception_df.columns:
-            st.error("The sheet must contain the column 'ketThucLayMau'.")
-            return
-
-        reception_df = reception_df.replace("", None)  # Normalize empty strings
-        reception_df.loc[reception_df["PID"] == pid, "ketThucLayMau"] = "1"
-
-        # Prepare the updated values
-        updated_values = [reception_df.columns.tolist()] + reception_df.fillna("").values.tolist()
-        sheets_service.spreadsheets().values().update(
-            spreadsheetId=RECEPTION_SHEET_ID,
-            range=RECEPTION_SHEET_RANGE,
-            valueInputOption="USER_ENTERED",
-            body={"values": updated_values}
-        ).execute()
-
-        # Clear session state for current PID
-        del st.session_state["current_pid"]
-        del st.session_state["current_ten_benh_nhan"]
-
-        # Notify user and redirect back to the Reception tab
-        st.success("Lấy máu hoàn tất. Quay lại thẻ 'Gọi bệnh nhân'.")
 
 
 
@@ -273,8 +241,7 @@ else:
         # Render the appropriate tab
         if selected_tab == "Gọi bệnh nhân":
             display_reception_tab()
-        elif selected_tab == "Hoàn tất lấy máu":
-            display_blood_draw_completion_tab()
+     
     else:
         st.error("Only tables 1–5 are allowed.")
 
